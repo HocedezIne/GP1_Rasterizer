@@ -63,8 +63,10 @@ namespace dae
 			}
 			updateONB = false;
 
-			invViewMatrix = { right, up, forward, origin };
-			viewMatrix = invViewMatrix.Inverse();
+			//invViewMatrix = { right, up, forward, origin };
+			//viewMatrix = invViewMatrix.Inverse();
+
+			viewMatrix = Matrix::CreateLookAtLH(origin, forward, up);
 		}
 
 		void CalculateProjectionMatrix()

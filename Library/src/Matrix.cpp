@@ -144,9 +144,14 @@ namespace dae {
 
 	Matrix Matrix::CreateLookAtLH(const Vector3& origin, const Vector3& forward, const Vector3& up)
 	{
-		//TODO W1
+		Vector3 z{forward.Normalized() };
+		Vector3 x{ Vector3::Cross(up, z).Normalized() };
+		Vector3 y{ Vector3::Cross(z,x) };
 
-		return {};
+		return Matrix{ {x.x, y.x, z.x, 0.f},
+					   {x.y, y.y, z.y, 0.f},
+					   {x.z, y.z, z.z, 0.f},
+					   {Vector3::Dot(-x, origin), Vector3::Dot(-y, origin), Vector3::Dot(-z,origin), 1.f} };
 	}
 
 	Matrix Matrix::CreatePerspectiveFovLH(float fov, float aspect, float zn, float zf)
