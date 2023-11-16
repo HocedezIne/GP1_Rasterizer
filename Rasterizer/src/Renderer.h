@@ -34,11 +34,11 @@ namespace dae
 		void Render_W1_Part2();
 		void Render_W1_Part3();
 		void Render_W1_Part4();
+		void Render_W1_Part5();
 
 		bool SaveBufferToImage() const;
 
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const;
-
 
 	private:
 		SDL_Window* m_pWindow{};
