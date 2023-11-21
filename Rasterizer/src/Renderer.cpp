@@ -47,9 +47,9 @@ void Renderer::Render()
 	//Render_W1_Part2(); //Projection Stage only
 	//Render_W1_Part3(); //Barycentric Coordinates
 	//Render_W1_Part4(); //Depth buffer
-	Render_W1_Part5(); //Bounding box optimization
+	//Render_W1_Part5(); //Bounding box optimization
 
-	//Render_W2();
+	Render_W2();
 
 	//@END
 	//Update SDL Surface
@@ -426,11 +426,6 @@ void Renderer::Render_W1_Part5()
 
 					const int pixelIdx{ px + (py * m_Width) };
 
-					const float triangleArea{ weights[0] + weights[1] + weights[2] };
-					finalColor = { vertices_out[triangleIdx + 0].color * (weights[0] / triangleArea) +
-								   vertices_out[triangleIdx + 1].color * (weights[1] / triangleArea) +
-								   vertices_out[triangleIdx + 2].color * (weights[2] / triangleArea) };
-
 					if (interpolatedDepth < m_pDepthBufferPixels[pixelIdx])
 					{
 						m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
@@ -456,30 +451,7 @@ void Renderer::Render_W1_Part5()
 
 void Renderer::Render_W2()
 {
-	std::vector<Mesh> meshes_world /*triangle strip*/
-	{
-		Mesh{
-					{
-				Vertex{ {-3.f,3.f,-2.f}},
-				Vertex{ {0.f,3.f,-2.f}},
-				Vertex{ {3.f,3.f,-2.f}},
-				Vertex{ {-3.f,0.f,-2.f}},
-				Vertex{{0.f,0.f,-2.f}},
-				Vertex{{3.f,0.f,-2.f}},
-				Vertex{{-3.f,-3.f,-2.f}},
-				Vertex{{0.f,-3.f,-2.f}},
-				Vertex{{3.f,-3.f,-2.f}}
-			},
-				{
-			3,0,4,1,5,2,
-			2,6,
-			6,3,7,4,8,5
-
-			},
-			PrimitiveTopology::TriangleStrip
-		}
-	};	
-	//std::vector<Mesh> meshes_world /*triangle list*/
+	//std::vector<Mesh> meshes_world /*triangle strip*/
 	//{
 	//	Mesh{
 	//				{
@@ -494,14 +466,35 @@ void Renderer::Render_W2()
 	//			Vertex{{3.f,-3.f,-2.f}}
 	//		},
 	//			{
-	//		3,0,1,	1,4,3,	4,1,2,
-	//		2,5,4,	6,3,4,	4,7,6,
-	//		7,4,5,	5,8,7
-	//
+	//		3,0,4,1,5,2,
+	//		2,6,
+	//		6,3,7,4,8,5
 	//		},
-	//		PrimitiveTopology::TriangleList
+	//		PrimitiveTopology::TriangleStrip
 	//	}
-	//};
+	//};	
+	std::vector<Mesh> meshes_world /*triangle list*/
+	{
+		Mesh{
+					{
+				Vertex{ {-3.f,3.f,-2.f}},
+				Vertex{ {0.f,3.f,-2.f}},
+				Vertex{ {3.f,3.f,-2.f}},
+				Vertex{ {-3.f,0.f,-2.f}},
+				Vertex{{0.f,0.f,-2.f}},
+				Vertex{{3.f,0.f,-2.f}},
+				Vertex{{-3.f,-3.f,-2.f}},
+				Vertex{{0.f,-3.f,-2.f}},
+				Vertex{{3.f,-3.f,-2.f}}
+			},
+				{
+			3,0,1,	1,4,3,	4,1,2,
+			2,5,4,	6,3,4,	4,7,6,
+			7,4,5,	5,8,7
+			},
+			PrimitiveTopology::TriangleList
+		}
+	};
 
 	std::vector<Mesh> meshes_out{};
 	meshes_out.reserve(meshes_world.size());
@@ -521,65 +514,64 @@ void Renderer::Render_W2()
 	std::pair<int, int> boundingBoxTopLeft{};
 	std::pair<int, int> boundingBoxBottomRight{};
 
+	for (const Mesh& mesh : meshes_out)
+	{
+		for (int triangleIdx{}; triangleIdx < mesh.indices.size(); triangleIdx += 3)
+		{
+			// calc bounding box
+			boundingBoxTopLeft.first = std::max(0, std::min(int(std::min(mesh.vertices[mesh.indices[triangleIdx]].position.x, std::min(mesh.vertices[mesh.indices[triangleIdx + 1]].position.x, mesh.vertices[mesh.indices[triangleIdx + 2]].position.x))), m_Width - 1));
+			boundingBoxTopLeft.second = std::max(0, std::min(int(std::min(mesh.vertices[mesh.indices[triangleIdx]].position.y, std::min(mesh.vertices[mesh.indices[triangleIdx + 1]].position.y, mesh.vertices[mesh.indices[triangleIdx + 2]].position.y))), m_Height - 1));
+			boundingBoxBottomRight.first = std::max(0, std::min(int(std::max(mesh.vertices[mesh.indices[triangleIdx]].position.x, std::max(mesh.vertices[mesh.indices[triangleIdx + 1]].position.x, mesh.vertices[mesh.indices[triangleIdx + 2]].position.x))), m_Width - 1));
+			boundingBoxBottomRight.second = std::max(0, std::min(int(std::max(mesh.vertices[mesh.indices[triangleIdx]].position.y, std::max(mesh.vertices[mesh.indices[triangleIdx + 1]].position.y, mesh.vertices[mesh.indices[triangleIdx + 2]].position.y))), m_Height - 1));
 
-	//for (int triangleIdx{}; triangleIdx < vertices_world.size(); triangleIdx += 3)
-	//{
-	//	// calc bounding box
-	//	boundingBoxTopLeft.first = std::max(0, std::min(int(std::min(vertices_out[triangleIdx].position.x, std::min(vertices_out[triangleIdx + 1].position.x, vertices_out[triangleIdx + 2].position.x))), m_Width - 1));
-	//	boundingBoxTopLeft.second = std::max(0, std::min(int(std::min(vertices_out[triangleIdx].position.y, std::min(vertices_out[triangleIdx + 1].position.y, vertices_out[triangleIdx + 2].position.y))), m_Height - 1));
-	//	boundingBoxBottomRight.first = std::max(0, std::min(int(std::max(vertices_out[triangleIdx].position.x, std::max(vertices_out[triangleIdx + 1].position.x, vertices_out[triangleIdx + 2].position.x))), m_Width - 1));
-	//	boundingBoxBottomRight.second = std::max(0, std::min(int(std::max(vertices_out[triangleIdx].position.y, std::max(vertices_out[triangleIdx + 1].position.y, vertices_out[triangleIdx + 2].position.y))), m_Height - 1));
+			for (int px{ boundingBoxTopLeft.first }; px < boundingBoxBottomRight.first; ++px)
+			{
+				for (int py{ boundingBoxTopLeft.second }; py < boundingBoxBottomRight.second; ++py)
+				{
+					bool earlyReturn{ false };
 
-	//	for (int px{ boundingBoxTopLeft.first }; px < boundingBoxBottomRight.first; ++px)
-	//	{
-	//		for (int py{ boundingBoxTopLeft.second }; py < boundingBoxBottomRight.second; ++py)
-	//		{
-	//			bool earlyReturn{ false };
+					for (int verticeIdx = triangleIdx; verticeIdx - triangleIdx < 3; verticeIdx++)
+					{
+						const Vector2 edge{ mesh.vertices[mesh.indices[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx]].position.x - mesh.vertices[mesh.indices[verticeIdx]].position.x,
+											mesh.vertices[mesh.indices[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx]].position.y - mesh.vertices[mesh.indices[verticeIdx]].position.y };
+						const Vector2 vertexToPixel{ px - mesh.vertices[mesh.indices[verticeIdx]].position.x , py - mesh.vertices[mesh.indices[verticeIdx]].position.y };
 
-	//			for (int verticeIdx = triangleIdx; verticeIdx - triangleIdx < 3; verticeIdx++)
-	//			{
-	//				const Vector2 edge{ vertices_out[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx].position.x - vertices_out[verticeIdx].position.x,  vertices_out[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx].position.y - vertices_out[verticeIdx].position.y };
-	//				const Vector2 vertexToPixel{ px - vertices_out[verticeIdx].position.x, py - vertices_out[verticeIdx].position.y };
-	//				weights[(verticeIdx - triangleIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
-	//				if (weights[(verticeIdx - triangleIdx + 2) % 3] < 0.f)
-	//				{
-	//					earlyReturn = true;
-	//					break;
-	//				}
-	//			}
-	//			if (!earlyReturn)
-	//			{
-	//				// check if pixel's depth value is smaller then stored one in depth buffer
-	//				const float interpolatedDepth{ vertices_out[triangleIdx + 0].position.z * weights[0] +
-	//							vertices_out[triangleIdx + 1].position.z * weights[1] +
-	//							vertices_out[triangleIdx + 2].position.z * weights[2] };
+						weights[(verticeIdx - triangleIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
+						if (weights[(verticeIdx - triangleIdx + 2) % 3] < 0.f)
+						{
+							earlyReturn = true;
+							break;
+						}
+					}
+					if (!earlyReturn)
+					{
+						// check if pixel's depth value is smaller then stored one in depth buffer
+						const float interpolatedDepth{ mesh.vertices[mesh.indices[triangleIdx + 0]].position.z * weights[0] +
+													   mesh.vertices[mesh.indices[triangleIdx + 1]].position.z * weights[1] +
+													   mesh.vertices[mesh.indices[triangleIdx + 2]].position.z * weights[2] };
 
-	//				const int pixelIdx{ px + (py * m_Width) };
+						const int pixelIdx{ px + (py * m_Width) };
 
-	//				const float triangleArea{ weights[0] + weights[1] + weights[2] };
-	//				finalColor = { vertices_out[triangleIdx + 0].color * (weights[0] / triangleArea) +
-	//							   vertices_out[triangleIdx + 1].color * (weights[1] / triangleArea) +
-	//							   vertices_out[triangleIdx + 2].color * (weights[2] / triangleArea) };
+						if (interpolatedDepth < m_pDepthBufferPixels[pixelIdx])
+						{
+							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
 
-	//				if (interpolatedDepth < m_pDepthBufferPixels[pixelIdx])
-	//				{
-	//					m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
+							const float triangleArea{ weights[0] + weights[1] + weights[2] };
+							finalColor = { mesh.vertices[mesh.indices[triangleIdx + 0]].color * (weights[0] / triangleArea) +
+										   mesh.vertices[mesh.indices[triangleIdx + 1]].color * (weights[1] / triangleArea) +
+										   mesh.vertices[mesh.indices[triangleIdx + 2]].color * (weights[2] / triangleArea) };
 
-	//					const float triangleArea{ weights[0] + weights[1] + weights[2] };
-	//					finalColor = { vertices_out[triangleIdx + 0].color * (weights[0] / triangleArea) +
-	//								   vertices_out[triangleIdx + 1].color * (weights[1] / triangleArea) +
-	//								   vertices_out[triangleIdx + 2].color * (weights[2] / triangleArea) };
+							//Update Color in Buffer
+							finalColor.MaxToOne();
 
-	//					//Update Color in Buffer
-	//					finalColor.MaxToOne();
-
-	//					m_pBackBufferPixels[pixelIdx] = SDL_MapRGB(m_pBackBuffer->format,
-	//						static_cast<uint8_t>(finalColor.r * 255),
-	//						static_cast<uint8_t>(finalColor.g * 255),
-	//						static_cast<uint8_t>(finalColor.b * 255));
-	//				}
-	//			}
-	//		}
-	//	}
-	//}
+							m_pBackBufferPixels[pixelIdx] = SDL_MapRGB(m_pBackBuffer->format,
+								static_cast<uint8_t>(finalColor.r * 255),
+								static_cast<uint8_t>(finalColor.g * 255),
+								static_cast<uint8_t>(finalColor.b * 255));
+						}
+					}
+				}
+			}
+		}
+	}
 }
