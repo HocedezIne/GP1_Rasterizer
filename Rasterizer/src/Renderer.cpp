@@ -49,6 +49,8 @@ void Renderer::Render()
 	//Render_W1_Part4(); //Depth buffer
 	Render_W1_Part5(); //Bounding box optimization
 
+	//Render_W2();
+
 	//@END
 	//Update SDL Surface
 	SDL_UnlockSurface(m_pBackBuffer);
@@ -74,6 +76,49 @@ void Renderer::VertexTransformationFunction(const std::vector<Vertex>& vertices_
 		vertices_out[i].position.x = ((vertices_out[i].position.x + 1) /2) * m_Width;
 		vertices_out[i].position.y = ((1 - vertices_out[i].position.y) / 2) * m_Height;
 	}
+}
+
+void Renderer::VertexTransformationFunction(const std::vector<Mesh>& meshes_in, std::vector<Mesh>& meshes_out) const
+{
+	for (int meshIdx{}; meshIdx < meshes_in.size(); ++meshIdx)
+	{
+		std::vector<Vertex> transformedVertices{};
+
+		for (int verticeIdx{}; verticeIdx < meshes_in[meshIdx].vertices.size(); ++verticeIdx)
+		{
+			transformedVertices.push_back({ {m_Camera.viewMatrix.TransformPoint(meshes_in[meshIdx].vertices[verticeIdx].position)}, meshes_in[meshIdx].vertices[verticeIdx].color }); // transform with viewmatrix
+
+			// perspective divide
+			transformedVertices[verticeIdx].position.x /= transformedVertices[verticeIdx].position.z;
+			transformedVertices[verticeIdx].position.y /= transformedVertices[verticeIdx].position.z;
+
+			// camera setting and screen size
+			transformedVertices[verticeIdx].position.x /= (m_Width / static_cast<float>(m_Height)) * m_Camera.fov;
+			transformedVertices[verticeIdx].position.y /= m_Camera.fov;
+
+			// NDC to screen space
+			transformedVertices[verticeIdx].position.x = ((transformedVertices[verticeIdx].position.x + 1) / 2) * m_Width;
+			transformedVertices[verticeIdx].position.y = ((1 - transformedVertices[verticeIdx].position.y) / 2) * m_Height;
+		}
+
+		meshes_out.push_back(Mesh{ transformedVertices, meshes_in[meshIdx].indices, meshes_in[meshIdx].primitiveTopology});
+	}
+}
+
+bool IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx = 0)
+{
+	for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; verticeIdx++)
+	{
+		const Vector2 edge{ vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x, vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y };
+		const Vector2 vertexToPixel{ pixel.x - vertices[verticeIdx].position.x, pixel.y - vertices[verticeIdx].position.y };
+		weights[(verticeIdx - startIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
+		if (weights[(verticeIdx - startIdx + 2) % 3] < 0.f)
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 bool Renderer::SaveBufferToImage() const
@@ -407,4 +452,134 @@ void Renderer::Render_W1_Part5()
 			}
 		}
 	}
+}
+
+void Renderer::Render_W2()
+{
+	std::vector<Mesh> meshes_world /*triangle strip*/
+	{
+		Mesh{
+					{
+				Vertex{ {-3.f,3.f,-2.f}},
+				Vertex{ {0.f,3.f,-2.f}},
+				Vertex{ {3.f,3.f,-2.f}},
+				Vertex{ {-3.f,0.f,-2.f}},
+				Vertex{{0.f,0.f,-2.f}},
+				Vertex{{3.f,0.f,-2.f}},
+				Vertex{{-3.f,-3.f,-2.f}},
+				Vertex{{0.f,-3.f,-2.f}},
+				Vertex{{3.f,-3.f,-2.f}}
+			},
+				{
+			3,0,4,1,5,2,
+			2,6,
+			6,3,7,4,8,5
+
+			},
+			PrimitiveTopology::TriangleStrip
+		}
+	};	
+	//std::vector<Mesh> meshes_world /*triangle list*/
+	//{
+	//	Mesh{
+	//				{
+	//			Vertex{ {-3.f,3.f,-2.f}},
+	//			Vertex{ {0.f,3.f,-2.f}},
+	//			Vertex{ {3.f,3.f,-2.f}},
+	//			Vertex{ {-3.f,0.f,-2.f}},
+	//			Vertex{{0.f,0.f,-2.f}},
+	//			Vertex{{3.f,0.f,-2.f}},
+	//			Vertex{{-3.f,-3.f,-2.f}},
+	//			Vertex{{0.f,-3.f,-2.f}},
+	//			Vertex{{3.f,-3.f,-2.f}}
+	//		},
+	//			{
+	//		3,0,1,	1,4,3,	4,1,2,
+	//		2,5,4,	6,3,4,	4,7,6,
+	//		7,4,5,	5,8,7
+	//
+	//		},
+	//		PrimitiveTopology::TriangleList
+	//	}
+	//};
+
+	std::vector<Mesh> meshes_out{};
+	meshes_out.reserve(meshes_world.size());
+
+	VertexTransformationFunction(meshes_world, meshes_out);
+
+	// fill depth buffer
+	std::fill_n(m_pDepthBufferPixels, m_Width * m_Height, FLT_MAX);
+
+	// clear backbuffer
+	SDL_FillRect(m_pBackBuffer, &m_pBackBuffer->clip_rect, SDL_MapRGB(m_pBackBuffer->format, 100, 100, 100));
+
+	// Setting frequently used variables that are loop safe 
+	ColorRGB finalColor{};
+	std::vector<float> weights;
+	for (int i{}; i < 3; i++) weights.push_back(float{});
+	std::pair<int, int> boundingBoxTopLeft{};
+	std::pair<int, int> boundingBoxBottomRight{};
+
+
+	//for (int triangleIdx{}; triangleIdx < vertices_world.size(); triangleIdx += 3)
+	//{
+	//	// calc bounding box
+	//	boundingBoxTopLeft.first = std::max(0, std::min(int(std::min(vertices_out[triangleIdx].position.x, std::min(vertices_out[triangleIdx + 1].position.x, vertices_out[triangleIdx + 2].position.x))), m_Width - 1));
+	//	boundingBoxTopLeft.second = std::max(0, std::min(int(std::min(vertices_out[triangleIdx].position.y, std::min(vertices_out[triangleIdx + 1].position.y, vertices_out[triangleIdx + 2].position.y))), m_Height - 1));
+	//	boundingBoxBottomRight.first = std::max(0, std::min(int(std::max(vertices_out[triangleIdx].position.x, std::max(vertices_out[triangleIdx + 1].position.x, vertices_out[triangleIdx + 2].position.x))), m_Width - 1));
+	//	boundingBoxBottomRight.second = std::max(0, std::min(int(std::max(vertices_out[triangleIdx].position.y, std::max(vertices_out[triangleIdx + 1].position.y, vertices_out[triangleIdx + 2].position.y))), m_Height - 1));
+
+	//	for (int px{ boundingBoxTopLeft.first }; px < boundingBoxBottomRight.first; ++px)
+	//	{
+	//		for (int py{ boundingBoxTopLeft.second }; py < boundingBoxBottomRight.second; ++py)
+	//		{
+	//			bool earlyReturn{ false };
+
+	//			for (int verticeIdx = triangleIdx; verticeIdx - triangleIdx < 3; verticeIdx++)
+	//			{
+	//				const Vector2 edge{ vertices_out[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx].position.x - vertices_out[verticeIdx].position.x,  vertices_out[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx].position.y - vertices_out[verticeIdx].position.y };
+	//				const Vector2 vertexToPixel{ px - vertices_out[verticeIdx].position.x, py - vertices_out[verticeIdx].position.y };
+	//				weights[(verticeIdx - triangleIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
+	//				if (weights[(verticeIdx - triangleIdx + 2) % 3] < 0.f)
+	//				{
+	//					earlyReturn = true;
+	//					break;
+	//				}
+	//			}
+	//			if (!earlyReturn)
+	//			{
+	//				// check if pixel's depth value is smaller then stored one in depth buffer
+	//				const float interpolatedDepth{ vertices_out[triangleIdx + 0].position.z * weights[0] +
+	//							vertices_out[triangleIdx + 1].position.z * weights[1] +
+	//							vertices_out[triangleIdx + 2].position.z * weights[2] };
+
+	//				const int pixelIdx{ px + (py * m_Width) };
+
+	//				const float triangleArea{ weights[0] + weights[1] + weights[2] };
+	//				finalColor = { vertices_out[triangleIdx + 0].color * (weights[0] / triangleArea) +
+	//							   vertices_out[triangleIdx + 1].color * (weights[1] / triangleArea) +
+	//							   vertices_out[triangleIdx + 2].color * (weights[2] / triangleArea) };
+
+	//				if (interpolatedDepth < m_pDepthBufferPixels[pixelIdx])
+	//				{
+	//					m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
+
+	//					const float triangleArea{ weights[0] + weights[1] + weights[2] };
+	//					finalColor = { vertices_out[triangleIdx + 0].color * (weights[0] / triangleArea) +
+	//								   vertices_out[triangleIdx + 1].color * (weights[1] / triangleArea) +
+	//								   vertices_out[triangleIdx + 2].color * (weights[2] / triangleArea) };
+
+	//					//Update Color in Buffer
+	//					finalColor.MaxToOne();
+
+	//					m_pBackBufferPixels[pixelIdx] = SDL_MapRGB(m_pBackBuffer->format,
+	//						static_cast<uint8_t>(finalColor.r * 255),
+	//						static_cast<uint8_t>(finalColor.g * 255),
+	//						static_cast<uint8_t>(finalColor.b * 255));
+	//				}
+	//			}
+	//		}
+	//	}
+	//}
 }
