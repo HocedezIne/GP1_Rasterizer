@@ -105,9 +105,11 @@ void Renderer::VertexTransformationFunction(const std::vector<Mesh>& meshes_in, 
 	}
 }
 
-bool IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx = 0)
+bool Renderer::IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx, bool strip)
 {
-	for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; verticeIdx++)
+	const int increment{ (strip && startIdx % 2 == 1) ? 3 : 1 };
+
+	for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; verticeIdx = (verticeIdx + increment)%3)
 	{
 		const Vector2 edge{ vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x, vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y };
 		const Vector2 vertexToPixel{ pixel.x - vertices[verticeIdx].position.x, pixel.y - vertices[verticeIdx].position.y };
@@ -119,6 +121,18 @@ bool IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel
 	}
 
 	return true;
+}
+
+const std::vector<Vertex> Renderer::CreateTriangle(const Mesh& mesh)
+{
+	std::vector<Vertex> result;
+
+	for (int idx = 0; idx < mesh.indices.size(); idx++)
+	{
+		result.push_back(mesh.vertices[mesh.indices[idx]]);
+	}
+
+	return result;
 }
 
 bool Renderer::SaveBufferToImage() const
@@ -451,7 +465,29 @@ void Renderer::Render_W1_Part5()
 
 void Renderer::Render_W2()
 {
-	//std::vector<Mesh> meshes_world /*triangle strip*/
+	std::vector<Mesh> meshes_world /*triangle strip*/
+	{
+		Mesh{
+					{
+				Vertex{ {-3.f, 3.f,-2.f}, {1.f,0.f,0.f}},
+				Vertex{ { 0.f, 3.f,-2.f}, {0.f,1.f,0.f}},
+				Vertex{ { 3.f, 3.f,-2.f}, {0.f,0.f,1.f}},
+				Vertex{ {-3.f, 0.f,-2.f}, {1.f,1.f,1.f}},
+				Vertex{ { 0.f, 0.f,-2.f}, {1.f,0.f,0.f}},
+				Vertex{ { 3.f, 0.f,-2.f}, {0.f,1.f,0.f}},
+				Vertex{ {-3.f,-3.f,-2.f}, {0.f,0.f,1.f}},
+				Vertex{ { 0.f,-3.f,-2.f}, {1.f,1.f,1.f}},
+				Vertex{ { 3.f,-3.f,-2.f}, {1.f,0.f,0.f}}
+			},
+				{
+			3,0,4,1,5,2,
+			2,6,
+			6,3,7,4,8,5
+			},
+			PrimitiveTopology::TriangleStrip
+		}
+	};	
+	//std::vector<Mesh> meshes_world /*triangle list*/
 	//{
 	//	Mesh{
 	//				{
@@ -466,35 +502,13 @@ void Renderer::Render_W2()
 	//			Vertex{{3.f,-3.f,-2.f}}
 	//		},
 	//			{
-	//		3,0,4,1,5,2,
-	//		2,6,
-	//		6,3,7,4,8,5
+	//		3,0,1,	1,4,3,	4,1,2,
+	//		2,5,4,	6,3,4,	4,7,6,
+	//		7,4,5,	5,8,7
 	//		},
-	//		PrimitiveTopology::TriangleStrip
+	//		PrimitiveTopology::TriangleList
 	//	}
-	//};	
-	std::vector<Mesh> meshes_world /*triangle list*/
-	{
-		Mesh{
-					{
-				Vertex{ {-3.f,3.f,-2.f}},
-				Vertex{ {0.f,3.f,-2.f}},
-				Vertex{ {3.f,3.f,-2.f}},
-				Vertex{ {-3.f,0.f,-2.f}},
-				Vertex{{0.f,0.f,-2.f}},
-				Vertex{{3.f,0.f,-2.f}},
-				Vertex{{-3.f,-3.f,-2.f}},
-				Vertex{{0.f,-3.f,-2.f}},
-				Vertex{{3.f,-3.f,-2.f}}
-			},
-				{
-			3,0,1,	1,4,3,	4,1,2,
-			2,5,4,	6,3,4,	4,7,6,
-			7,4,5,	5,8,7
-			},
-			PrimitiveTopology::TriangleList
-		}
-	};
+	//};
 
 	std::vector<Mesh> meshes_out{};
 	meshes_out.reserve(meshes_world.size());
@@ -516,39 +530,29 @@ void Renderer::Render_W2()
 
 	for (const Mesh& mesh : meshes_out)
 	{
-		for (int triangleIdx{}; triangleIdx < mesh.indices.size(); triangleIdx += 3)
+		const int increment{ (mesh.primitiveTopology == PrimitiveTopology::TriangleList) ? 3 : 1 };
+		const auto loopLenght{ (mesh.primitiveTopology == PrimitiveTopology::TriangleList) ? mesh.indices.size() : mesh.indices.size() - 2 };
+
+		for (int triangleIdx{}; triangleIdx < loopLenght; triangleIdx += increment)
 		{
+			const std::vector<Vertex> vertices{ CreateTriangle(mesh) };
+
 			// calc bounding box
-			boundingBoxTopLeft.first = std::max(0, std::min(int(std::min(mesh.vertices[mesh.indices[triangleIdx]].position.x, std::min(mesh.vertices[mesh.indices[triangleIdx + 1]].position.x, mesh.vertices[mesh.indices[triangleIdx + 2]].position.x))), m_Width - 1));
-			boundingBoxTopLeft.second = std::max(0, std::min(int(std::min(mesh.vertices[mesh.indices[triangleIdx]].position.y, std::min(mesh.vertices[mesh.indices[triangleIdx + 1]].position.y, mesh.vertices[mesh.indices[triangleIdx + 2]].position.y))), m_Height - 1));
-			boundingBoxBottomRight.first = std::max(0, std::min(int(std::max(mesh.vertices[mesh.indices[triangleIdx]].position.x, std::max(mesh.vertices[mesh.indices[triangleIdx + 1]].position.x, mesh.vertices[mesh.indices[triangleIdx + 2]].position.x))), m_Width - 1));
-			boundingBoxBottomRight.second = std::max(0, std::min(int(std::max(mesh.vertices[mesh.indices[triangleIdx]].position.y, std::max(mesh.vertices[mesh.indices[triangleIdx + 1]].position.y, mesh.vertices[mesh.indices[triangleIdx + 2]].position.y))), m_Height - 1));
+			boundingBoxTopLeft.first = std::max(0, std::min(int(std::min(vertices[triangleIdx].position.x, std::min(vertices[triangleIdx + 1].position.x, vertices[triangleIdx + 2].position.x))), m_Width - 1));
+			boundingBoxTopLeft.second = std::max(0, std::min(int(std::min(vertices[triangleIdx].position.y, std::min(vertices[triangleIdx + 1].position.y, vertices[triangleIdx + 2].position.y))), m_Height - 1));
+			boundingBoxBottomRight.first = std::max(0, std::min(int(std::max(vertices[triangleIdx].position.x, std::max(vertices[triangleIdx + 1].position.x, vertices[triangleIdx + 2].position.x))), m_Width - 1));
+			boundingBoxBottomRight.second = std::max(0, std::min(int(std::max(vertices[triangleIdx].position.y, std::max(vertices[triangleIdx + 1].position.y, vertices[triangleIdx + 2].position.y))), m_Height - 1));
 
 			for (int px{ boundingBoxTopLeft.first }; px < boundingBoxBottomRight.first; ++px)
 			{
 				for (int py{ boundingBoxTopLeft.second }; py < boundingBoxBottomRight.second; ++py)
 				{
-					bool earlyReturn{ false };
-
-					for (int verticeIdx = triangleIdx; verticeIdx - triangleIdx < 3; verticeIdx++)
-					{
-						const Vector2 edge{ mesh.vertices[mesh.indices[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx]].position.x - mesh.vertices[mesh.indices[verticeIdx]].position.x,
-											mesh.vertices[mesh.indices[(verticeIdx - triangleIdx + 1) % 3 + triangleIdx]].position.y - mesh.vertices[mesh.indices[verticeIdx]].position.y };
-						const Vector2 vertexToPixel{ px - mesh.vertices[mesh.indices[verticeIdx]].position.x , py - mesh.vertices[mesh.indices[verticeIdx]].position.y };
-
-						weights[(verticeIdx - triangleIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
-						if (weights[(verticeIdx - triangleIdx + 2) % 3] < 0.f)
-						{
-							earlyReturn = true;
-							break;
-						}
-					}
-					if (!earlyReturn)
+					if (IsPixelInTriangle(vertices, Vector2{ float(px), float(py) }, weights, triangleIdx, mesh.primitiveTopology == PrimitiveTopology::TriangleStrip))
 					{
 						// check if pixel's depth value is smaller then stored one in depth buffer
-						const float interpolatedDepth{ mesh.vertices[mesh.indices[triangleIdx + 0]].position.z * weights[0] +
-													   mesh.vertices[mesh.indices[triangleIdx + 1]].position.z * weights[1] +
-													   mesh.vertices[mesh.indices[triangleIdx + 2]].position.z * weights[2] };
+						const float interpolatedDepth{ vertices[triangleIdx + 0].position.z * weights[0] +
+													   vertices[triangleIdx + 1].position.z * weights[1] +
+													   vertices[triangleIdx + 2].position.z * weights[2] };
 
 						const int pixelIdx{ px + (py * m_Width) };
 
@@ -557,9 +561,9 @@ void Renderer::Render_W2()
 							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
 
 							const float triangleArea{ weights[0] + weights[1] + weights[2] };
-							finalColor = { mesh.vertices[mesh.indices[triangleIdx + 0]].color * (weights[0] / triangleArea) +
-										   mesh.vertices[mesh.indices[triangleIdx + 1]].color * (weights[1] / triangleArea) +
-										   mesh.vertices[mesh.indices[triangleIdx + 2]].color * (weights[2] / triangleArea) };
+							finalColor = { vertices[triangleIdx + 0].color * (weights[0] / triangleArea) +
+										   vertices[triangleIdx + 1].color * (weights[1] / triangleArea) +
+										   vertices[triangleIdx + 2].color * (weights[2] / triangleArea) };
 
 							//Update Color in Buffer
 							finalColor.MaxToOne();

@@ -44,7 +44,9 @@ namespace dae
 		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const;
 		void VertexTransformationFunction(const std::vector<Mesh>& meshes_in, std::vector<Mesh>& meshes_out) const;
 
-		bool IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx = 0);
+		bool IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx = 0, const bool strip = false);
+
+		const std::vector<Vertex> CreateTriangle(const Mesh& mesh);
 
 	private:
 		SDL_Window* m_pWindow{};
