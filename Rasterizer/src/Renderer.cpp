@@ -569,9 +569,9 @@ void Renderer::Render_W2()
 						weights[2] /= triangleArea;
 
 						// check if pixel's depth value is smaller then stored one in depth buffer
-						const float interpolatedDepth{ vertices[triangleIdx + 0].position.z * weights[0] +
-													   vertices[triangleIdx + 1].position.z * weights[1] +
-													   vertices[triangleIdx + 2].position.z * weights[2] };
+						const float interpolatedDepth{ 1.f / (1.f/vertices[triangleIdx + 0].position.z * weights[0] +
+															  1.f/vertices[triangleIdx + 1].position.z * weights[1] +
+															  1.f/vertices[triangleIdx + 2].position.z * weights[2]) };
 
 						const int pixelIdx{ px + (py * m_Width) };
 
@@ -583,9 +583,9 @@ void Renderer::Render_W2()
 										   vertices[triangleIdx + 1].color * (weights[1] / triangleArea) +
 										   vertices[triangleIdx + 2].color * (weights[2] / triangleArea) };*/
 
-							Vector2 uvInterpolated{ vertices[triangleIdx + 0].uv * weights[0] +
-											  vertices[triangleIdx + 1].uv * weights[1] +
-											  vertices[triangleIdx + 2].uv * weights[2] };
+							Vector2 uvInterpolated{ (vertices[triangleIdx + 0].uv / vertices[triangleIdx + 0].position.z * weights[0] +
+													 vertices[triangleIdx + 1].uv / vertices[triangleIdx + 1].position.z * weights[1] +
+													 vertices[triangleIdx + 2].uv / vertices[triangleIdx + 2].position.z * weights[2]) * interpolatedDepth };
 							uvInterpolated.x = Clamp(uvInterpolated.x, 0.f, 1.f);
 							uvInterpolated.y = Clamp(uvInterpolated.y, 0.f, 1.f);
 
