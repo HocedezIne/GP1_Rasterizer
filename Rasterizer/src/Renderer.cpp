@@ -111,18 +111,23 @@ void Renderer::VertexTransformationFunction(const std::vector<Mesh>& meshes_in, 
 
 bool Renderer::IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx, bool strip)
 {
+	Vector2 edge{}, vertexToPixel{};
+
 	for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; ++verticeIdx)
 	{
-		Vector2 edge{}, vertexToPixel{};
 		if (strip && startIdx % 2 == 1)
 		{
-			edge = Vector2{ vertices[verticeIdx].position.x - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x, vertices[verticeIdx].position.y - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y };
-			vertexToPixel = Vector2{ pixel.x - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x, pixel.y - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y };
+			edge.x = vertices[verticeIdx].position.x - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x;
+			edge.y = vertices[verticeIdx].position.y - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y;
+			vertexToPixel.x = pixel.x - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x;
+			vertexToPixel.y = pixel.y - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y;
 		}
 		else
 		{
-			edge = Vector2{ vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x, vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y };
-			vertexToPixel = Vector2{ pixel.x - vertices[verticeIdx].position.x, pixel.y - vertices[verticeIdx].position.y };
+			edge.x = vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x;
+			edge.y = vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y;
+			vertexToPixel.x = pixel.x - vertices[verticeIdx].position.x;
+			vertexToPixel.y = pixel.y - vertices[verticeIdx].position.y;
 		}
 		weights[(verticeIdx - startIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
 		if (weights[(verticeIdx - startIdx + 2) % 3] < 0.f)
@@ -537,6 +542,7 @@ void Renderer::Render_W2()
 	ColorRGB finalColor{};
 	std::vector<float> weights;
 	for (int i{}; i < 3; i++) weights.push_back(float{});
+
 	std::pair<int, int> boundingBoxTopLeft{};
 	std::pair<int, int> boundingBoxBottomRight{};
 
@@ -573,28 +579,20 @@ void Renderer::Render_W2()
 															  1.f/vertices[triangleIdx + 1].position.z * weights[1] +
 															  1.f/vertices[triangleIdx + 2].position.z * weights[2]) };
 
-						const int pixelIdx{ px + (py * m_Width) };
-
-						if (interpolatedDepth < m_pDepthBufferPixels[pixelIdx])
+						if (interpolatedDepth < m_pDepthBufferPixels[px + (py * m_Width)])
 						{
-							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
+							m_pDepthBufferPixels[px + (py * m_Width)] = interpolatedDepth;
 
-							/*finalColor = { vertices[triangleIdx + 0].color * (weights[0] / triangleArea) +
-										   vertices[triangleIdx + 1].color * (weights[1] / triangleArea) +
-										   vertices[triangleIdx + 2].color * (weights[2] / triangleArea) };*/
-
-							Vector2 uvInterpolated{ (vertices[triangleIdx + 0].uv / vertices[triangleIdx + 0].position.z * weights[0] +
+							const Vector2 uvInterpolated{ (vertices[triangleIdx + 0].uv / vertices[triangleIdx + 0].position.z * weights[0] +
 													 vertices[triangleIdx + 1].uv / vertices[triangleIdx + 1].position.z * weights[1] +
 													 vertices[triangleIdx + 2].uv / vertices[triangleIdx + 2].position.z * weights[2]) * interpolatedDepth };
-							uvInterpolated.x = Clamp(uvInterpolated.x, 0.f, 1.f);
-							uvInterpolated.y = Clamp(uvInterpolated.y, 0.f, 1.f);
 
 							finalColor = m_pTexture->Sample(uvInterpolated);
 
 							//Update Color in Buffer
 							finalColor.MaxToOne();
 
-							m_pBackBufferPixels[pixelIdx] = SDL_MapRGB(m_pBackBuffer->format,
+							m_pBackBufferPixels[px + (py * m_Width)] = SDL_MapRGB(m_pBackBuffer->format,
 								static_cast<uint8_t>(finalColor.r * 255),
 								static_cast<uint8_t>(finalColor.g * 255),
 								static_cast<uint8_t>(finalColor.b * 255));
