@@ -56,6 +56,7 @@ namespace dae
 		uint32_t* m_pBackBufferPixels{};
 
 		float* m_pDepthBufferPixels{};
+		Texture* m_pTexture{ nullptr };
 
 		Camera m_Camera{};
 

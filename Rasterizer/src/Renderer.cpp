@@ -22,6 +22,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	m_pBackBufferPixels = (uint32_t*)m_pBackBuffer->pixels;
 
 	m_pDepthBufferPixels = new float[m_Width * m_Height];
+	m_pTexture = Texture::LoadFromFile("Resources/uv_grid_2.png");
 
 	//Initialize Camera
 	m_Camera.Initialize(60.f, { .0f,.0f,-10.f });
@@ -30,6 +31,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 Renderer::~Renderer()
 {
 	delete[] m_pDepthBufferPixels;
+	delete m_pTexture;
 }
 
 void Renderer::Update(Timer* pTimer)
@@ -62,7 +64,7 @@ void Renderer::VertexTransformationFunction(const std::vector<Vertex>& vertices_
 {
 	for (int i{}; i < vertices_in.size(); ++i)
 	{
-		vertices_out.push_back({ {m_Camera.viewMatrix.TransformPoint(vertices_in[i].position)}, vertices_in[i].color }); // transform with viewmatrix
+		vertices_out.push_back({ {m_Camera.viewMatrix.TransformPoint(vertices_in[i].position)}, vertices_in[i].color, vertices_in[i].uv}); // transform with viewmatrix
 
 		// perspective divide
 		vertices_out[i].position.x /= vertices_out[i].position.z;
@@ -86,7 +88,9 @@ void Renderer::VertexTransformationFunction(const std::vector<Mesh>& meshes_in, 
 
 		for (int verticeIdx{}; verticeIdx < meshes_in[meshIdx].vertices.size(); ++verticeIdx)
 		{
-			transformedVertices.push_back({ {m_Camera.viewMatrix.TransformPoint(meshes_in[meshIdx].vertices[verticeIdx].position)}, meshes_in[meshIdx].vertices[verticeIdx].color }); // transform with viewmatrix
+			transformedVertices.push_back({ {m_Camera.viewMatrix.TransformPoint(meshes_in[meshIdx].vertices[verticeIdx].position)}, 
+											meshes_in[meshIdx].vertices[verticeIdx].color, 
+											meshes_in[meshIdx].vertices[verticeIdx].uv }); // transform with viewmatrix
 
 			// perspective divide
 			transformedVertices[verticeIdx].position.x /= transformedVertices[verticeIdx].position.z;
@@ -126,18 +130,6 @@ bool Renderer::IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vect
 			return false;
 		}
 	}
-
-	//for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; ++verticeIdx)
-	//{
-	//	const Vector2 edge{ vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x, vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y };
-	//	const Vector2 vertexToPixel{ pixel.x - vertices[verticeIdx].position.x, pixel.y - vertices[verticeIdx].position.y };
-
-	//	weights[(verticeIdx - startIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
-	//	if (weights[(verticeIdx - startIdx + 2) % 3] < 0.f)
-	//	{
-	//		return false;
-	//	}
-	//}
 
 	return true;
 }
@@ -484,19 +476,20 @@ void Renderer::Render_W1_Part5()
 
 void Renderer::Render_W2()
 {
+
 	std::vector<Mesh> meshes_world /*triangle strip*/
 	{
 		Mesh{
 					{
-				Vertex{ {-3.f, 3.f,-2.f}, {1.f,0.f,0.f}},
-				Vertex{ { 0.f, 3.f,-2.f}, {0.f,1.f,0.f}},
-				Vertex{ { 3.f, 3.f,-2.f}, {0.f,0.f,1.f}},
-				Vertex{ {-3.f, 0.f,-2.f}, {1.f,1.f,1.f}},
-				Vertex{ { 0.f, 0.f,-2.f}, {1.f,0.f,0.f}},
-				Vertex{ { 3.f, 0.f,-2.f}, {0.f,1.f,0.f}},
-				Vertex{ {-3.f,-3.f,-2.f}, {0.f,0.f,1.f}},
-				Vertex{ { 0.f,-3.f,-2.f}, {1.f,1.f,1.f}},
-				Vertex{ { 3.f,-3.f,-2.f}, {1.f,0.f,0.f}}
+				Vertex{ {-3.f, 3.f,-2.f},{}, {0.f,0.f}},
+				Vertex{ { 0.f, 3.f,-2.f},{}, {0.5f,0.f}},
+				Vertex{ { 3.f, 3.f,-2.f},{}, {1.f,0.f}},
+				Vertex{ {-3.f, 0.f,-2.f},{}, {0.f,0.5f}},
+				Vertex{ { 0.f, 0.f,-2.f},{}, {0.5f,0.5f}},
+				Vertex{ { 3.f, 0.f,-2.f},{}, {1.f,0.5f}},
+				Vertex{ {-3.f,-3.f,-2.f},{}, {0.f, 1.f}},
+				Vertex{ { 0.f,-3.f,-2.f},{}, {0.5f,1.f}},
+				Vertex{ { 3.f,-3.f,-2.f},{}, {1.f,1.f}}
 			},
 				{
 			3,0,4,1,5,2,
@@ -510,15 +503,15 @@ void Renderer::Render_W2()
 	//{
 	//	Mesh{
 	//				{
-	//			Vertex{ {-3.f,3.f,-2.f}},
-	//			Vertex{ {0.f,3.f,-2.f}},
-	//			Vertex{ {3.f,3.f,-2.f}},
-	//			Vertex{ {-3.f,0.f,-2.f}},
-	//			Vertex{{0.f,0.f,-2.f}},
-	//			Vertex{{3.f,0.f,-2.f}},
-	//			Vertex{{-3.f,-3.f,-2.f}},
-	//			Vertex{{0.f,-3.f,-2.f}},
-	//			Vertex{{3.f,-3.f,-2.f}}
+	//			Vertex{ {-3.f, 3.f,-2.f},{}, {0.f,0.f}},
+	//			Vertex{ { 0.f, 3.f,-2.f},{}, {0.5f,0.f}},
+	//			Vertex{ { 3.f, 3.f,-2.f},{}, {1.f,0.f}},
+	//			Vertex{ {-3.f, 0.f,-2.f},{}, {0.f,0.5f}},
+	//			Vertex{ { 0.f, 0.f,-2.f},{}, {0.5f,0.5f}},
+	//			Vertex{ { 3.f, 0.f,-2.f},{}, {1.f,0.5f}},
+	//			Vertex{ {-3.f,-3.f,-2.f},{}, {0.f, 1.f}},
+	//			Vertex{ { 0.f,-3.f,-2.f},{}, {0.5f,1.f}},
+	//			Vertex{ { 3.f,-3.f,-2.f},{}, {1.f,1.f}}
 	//		},
 	//			{
 	//		3,0,1,	1,4,3,	4,1,2,
@@ -568,6 +561,13 @@ void Renderer::Render_W2()
 				{
 					if (IsPixelInTriangle(vertices, Vector2{ float(px), float(py) }, weights, triangleIdx, mesh.primitiveTopology == PrimitiveTopology::TriangleStrip))
 					{
+						const float triangleArea{ weights[0] + weights[1] + weights[2] };
+
+						// normalize weights
+						weights[0] /= triangleArea;
+						weights[1] /= triangleArea;
+						weights[2] /= triangleArea;
+
 						// check if pixel's depth value is smaller then stored one in depth buffer
 						const float interpolatedDepth{ vertices[triangleIdx + 0].position.z * weights[0] +
 													   vertices[triangleIdx + 1].position.z * weights[1] +
@@ -579,10 +579,17 @@ void Renderer::Render_W2()
 						{
 							m_pDepthBufferPixels[pixelIdx] = interpolatedDepth;
 
-							const float triangleArea{ weights[0] + weights[1] + weights[2] };
-							finalColor = { vertices[triangleIdx + 0].color * (weights[0] / triangleArea) +
+							/*finalColor = { vertices[triangleIdx + 0].color * (weights[0] / triangleArea) +
 										   vertices[triangleIdx + 1].color * (weights[1] / triangleArea) +
-										   vertices[triangleIdx + 2].color * (weights[2] / triangleArea) };
+										   vertices[triangleIdx + 2].color * (weights[2] / triangleArea) };*/
+
+							Vector2 uvInterpolated{ vertices[triangleIdx + 0].uv * weights[0] +
+											  vertices[triangleIdx + 1].uv * weights[1] +
+											  vertices[triangleIdx + 2].uv * weights[2] };
+							uvInterpolated.x = Clamp(uvInterpolated.x, 0.f, 1.f);
+							uvInterpolated.y = Clamp(uvInterpolated.y, 0.f, 1.f);
+
+							finalColor = m_pTexture->Sample(uvInterpolated);
 
 							//Update Color in Buffer
 							finalColor.MaxToOne();
