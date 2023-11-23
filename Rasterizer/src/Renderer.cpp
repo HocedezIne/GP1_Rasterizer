@@ -107,18 +107,37 @@ void Renderer::VertexTransformationFunction(const std::vector<Mesh>& meshes_in, 
 
 bool Renderer::IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx, bool strip)
 {
-	const int increment{ (strip && startIdx % 2 == 1) ? 3 : 1 };
-
-	for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; verticeIdx = (verticeIdx + increment)%3)
+	for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; ++verticeIdx)
 	{
-		const Vector2 edge{ vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x, vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y };
-		const Vector2 vertexToPixel{ pixel.x - vertices[verticeIdx].position.x, pixel.y - vertices[verticeIdx].position.y };
+		Vector2 edge{}, vertexToPixel{};
+		if (strip && startIdx % 2 == 1)
+		{
+			edge = Vector2{ vertices[verticeIdx].position.x - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x, vertices[verticeIdx].position.y - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y };
+			vertexToPixel = Vector2{ pixel.x - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x, pixel.y - vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y };
+		}
+		else
+		{
+			edge = Vector2{ vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x, vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y };
+			vertexToPixel = Vector2{ pixel.x - vertices[verticeIdx].position.x, pixel.y - vertices[verticeIdx].position.y };
+		}
 		weights[(verticeIdx - startIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
 		if (weights[(verticeIdx - startIdx + 2) % 3] < 0.f)
 		{
 			return false;
 		}
 	}
+
+	//for (int verticeIdx = startIdx; verticeIdx - startIdx < 3; ++verticeIdx)
+	//{
+	//	const Vector2 edge{ vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.x - vertices[verticeIdx].position.x, vertices[(verticeIdx - startIdx + 1) % 3 + startIdx].position.y - vertices[verticeIdx].position.y };
+	//	const Vector2 vertexToPixel{ pixel.x - vertices[verticeIdx].position.x, pixel.y - vertices[verticeIdx].position.y };
+
+	//	weights[(verticeIdx - startIdx + 2) % 3] = Vector2::Cross(edge, vertexToPixel);
+	//	if (weights[(verticeIdx - startIdx + 2) % 3] < 0.f)
+	//	{
+	//		return false;
+	//	}
+	//}
 
 	return true;
 }
