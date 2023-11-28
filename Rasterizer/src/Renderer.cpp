@@ -45,13 +45,7 @@ void Renderer::Render()
 	//Lock BackBuffer
 	SDL_LockSurface(m_pBackBuffer);
 
-	//Render_W1_Part1(); //Rasterizer Stage Only
-	//Render_W1_Part2(); //Projection Stage only
-	//Render_W1_Part3(); //Barycentric Coordinates
-	//Render_W1_Part4(); //Depth buffer
-	//Render_W1_Part5(); //Bounding box optimization
-
-	Render_W2();
+	Render_W3();
 
 	//@END
 	//Update SDL Surface
@@ -60,56 +54,32 @@ void Renderer::Render()
 	SDL_UpdateWindowSurface(m_pWindow);
 }
 
-void Renderer::VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const
+void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 {
-	for (int i{}; i < vertices_in.size(); ++i)
+	for (int meshIdx{}; meshIdx < meshes.size(); ++meshIdx)
 	{
-		vertices_out.push_back({ {m_Camera.viewMatrix.TransformPoint(vertices_in[i].position)}, vertices_in[i].color, vertices_in[i].uv}); // transform with viewmatrix
+		Matrix worldViewProjection = m_Camera.viewMatrix * m_Camera.projectionMatrix;
 
-		// perspective divide
-		vertices_out[i].position.x /= vertices_out[i].position.z;
-		vertices_out[i].position.y /= vertices_out[i].position.z;
-
-		// camera setting and screen size
-		vertices_out[i].position.x /= (m_Width / static_cast<float>(m_Height)) * m_Camera.fov;
-		vertices_out[i].position.y /= m_Camera.fov;
-
-		// NDC to screen space
-		vertices_out[i].position.x = ((vertices_out[i].position.x + 1) /2) * m_Width;
-		vertices_out[i].position.y = ((1 - vertices_out[i].position.y) / 2) * m_Height;
-	}
-}
-
-void Renderer::VertexTransformationFunction(const std::vector<Mesh>& meshes_in, std::vector<Mesh>& meshes_out) const
-{
-	for (int meshIdx{}; meshIdx < meshes_in.size(); ++meshIdx)
-	{
-		std::vector<Vertex> transformedVertices{};
-
-		for (int verticeIdx{}; verticeIdx < meshes_in[meshIdx].vertices.size(); ++verticeIdx)
+		for (int verticeIdx{}; verticeIdx < meshes[meshIdx].vertices.size(); ++verticeIdx)
 		{
-			transformedVertices.push_back({ {m_Camera.viewMatrix.TransformPoint(meshes_in[meshIdx].vertices[verticeIdx].position)}, 
-											meshes_in[meshIdx].vertices[verticeIdx].color, 
-											meshes_in[meshIdx].vertices[verticeIdx].uv }); // transform with viewmatrix
+			Vector4 transformedPosition{ meshes[meshIdx].vertices[verticeIdx].position, 1.f };
+			transformedPosition = worldViewProjection.TransformPoint(transformedPosition);
 
 			// perspective divide
-			transformedVertices[verticeIdx].position.x /= transformedVertices[verticeIdx].position.z;
-			transformedVertices[verticeIdx].position.y /= transformedVertices[verticeIdx].position.z;
-
-			// camera setting and screen size
-			transformedVertices[verticeIdx].position.x /= (m_Width / static_cast<float>(m_Height)) * m_Camera.fov;
-			transformedVertices[verticeIdx].position.y /= m_Camera.fov;
+			transformedPosition.x /= transformedPosition.w;
+			transformedPosition.y /= transformedPosition.w;
+			transformedPosition.z /= transformedPosition.w;
 
 			// NDC to screen space
-			transformedVertices[verticeIdx].position.x = ((transformedVertices[verticeIdx].position.x + 1) / 2) * m_Width;
-			transformedVertices[verticeIdx].position.y = ((1 - transformedVertices[verticeIdx].position.y) / 2) * m_Height;
-		}
+			transformedPosition.x = ((transformedPosition.x + 1) / 2) * m_Width;
+			transformedPosition.y = ((1 - transformedPosition.y) / 2) * m_Height;
 
-		meshes_out.push_back(Mesh{ transformedVertices, meshes_in[meshIdx].indices, meshes_in[meshIdx].primitiveTopology});
+			meshes[meshIdx].vertices_out.push_back(Vertex_Out{ transformedPosition, meshes[meshIdx].vertices[verticeIdx].color, meshes[meshIdx].vertices[verticeIdx].uv });
+		}
 	}
 }
 
-bool Renderer::IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx, bool strip)
+bool Renderer::IsPixelInTriangle(const std::vector<Vertex_Out>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx, bool strip)
 {
 	Vector2 edge{}, vertexToPixel{};
 
@@ -139,13 +109,13 @@ bool Renderer::IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vect
 	return true;
 }
 
-const std::vector<Vertex> Renderer::CreateTriangle(const Mesh& mesh)
+const std::vector<Vertex_Out> Renderer::CreateTriangle(const Mesh& mesh)
 {
-	std::vector<Vertex> result;
+	std::vector<Vertex_Out> result;
 
 	for (int idx = 0; idx < mesh.indices.size(); idx++)
 	{
-		result.push_back(mesh.vertices[mesh.indices[idx]]);
+		result.push_back(mesh.vertices_out[mesh.indices[idx]]);
 	}
 
 	return result;
@@ -156,10 +126,9 @@ bool Renderer::SaveBufferToImage() const
 	return SDL_SaveBMP(m_pBackBuffer, "Rasterizer_ColorBuffer.bmp");
 }
 
-void Renderer::Render_W2()
+void Renderer::Render_W3()
 {
-
-	std::vector<Mesh> meshes_world /*triangle strip*/
+	std::vector<Mesh> meshes_world /*triangle list*/
 	{
 		Mesh{
 					{
@@ -174,40 +143,15 @@ void Renderer::Render_W2()
 				Vertex{ { 3.f,-3.f,-2.f},{}, {1.f,1.f}}
 			},
 				{
-			3,0,4,1,5,2,
-			2,6,
-			6,3,7,4,8,5
+			3,0,1,	1,4,3,	4,1,2,
+			2,5,4,	6,3,4,	4,7,6,
+			7,4,5,	5,8,7
 			},
-			PrimitiveTopology::TriangleStrip
+			PrimitiveTopology::TriangleList
 		}
-	};	
-	//std::vector<Mesh> meshes_world /*triangle list*/
-	//{
-	//	Mesh{
-	//				{
-	//			Vertex{ {-3.f, 3.f,-2.f},{}, {0.f,0.f}},
-	//			Vertex{ { 0.f, 3.f,-2.f},{}, {0.5f,0.f}},
-	//			Vertex{ { 3.f, 3.f,-2.f},{}, {1.f,0.f}},
-	//			Vertex{ {-3.f, 0.f,-2.f},{}, {0.f,0.5f}},
-	//			Vertex{ { 0.f, 0.f,-2.f},{}, {0.5f,0.5f}},
-	//			Vertex{ { 3.f, 0.f,-2.f},{}, {1.f,0.5f}},
-	//			Vertex{ {-3.f,-3.f,-2.f},{}, {0.f, 1.f}},
-	//			Vertex{ { 0.f,-3.f,-2.f},{}, {0.5f,1.f}},
-	//			Vertex{ { 3.f,-3.f,-2.f},{}, {1.f,1.f}}
-	//		},
-	//			{
-	//		3,0,1,	1,4,3,	4,1,2,
-	//		2,5,4,	6,3,4,	4,7,6,
-	//		7,4,5,	5,8,7
-	//		},
-	//		PrimitiveTopology::TriangleList
-	//	}
-	//};
+	};
 
-	std::vector<Mesh> meshes_out{};
-	meshes_out.reserve(meshes_world.size());
-
-	VertexTransformationFunction(meshes_world, meshes_out);
+	VertexTransformationFunction(meshes_world);
 
 	// fill depth buffer
 	std::fill_n(m_pDepthBufferPixels, m_Width * m_Height, FLT_MAX);
@@ -223,14 +167,14 @@ void Renderer::Render_W2()
 	std::pair<int, int> boundingBoxTopLeft{};
 	std::pair<int, int> boundingBoxBottomRight{};
 
-	for (const Mesh& mesh : meshes_out)
+	for (const Mesh& mesh : meshes_world)
 	{
 		const int increment{ (mesh.primitiveTopology == PrimitiveTopology::TriangleList) ? 3 : 1 };
 		const auto loopLenght{ (mesh.primitiveTopology == PrimitiveTopology::TriangleList) ? mesh.indices.size() : mesh.indices.size() - 2 };
 
 		for (int triangleIdx{}; triangleIdx < loopLenght; triangleIdx += increment)
 		{
-			const std::vector<Vertex> vertices{ CreateTriangle(mesh) };
+			const std::vector<Vertex_Out> vertices{ CreateTriangle(mesh) };
 
 			// calc bounding box
 			boundingBoxTopLeft.first = std::max(0, std::min(int(std::min(vertices[triangleIdx].position.x, std::min(vertices[triangleIdx + 1].position.x, vertices[triangleIdx + 2].position.x))), m_Width - 1));
@@ -252,17 +196,24 @@ void Renderer::Render_W2()
 						weights[2] /= triangleArea;
 
 						// check if pixel's depth value is smaller then stored one in depth buffer
-						const float interpolatedDepth{ 1.f / (1.f/vertices[triangleIdx + 0].position.z * weights[0] +
+						const float interpolatedZDepth{ 1.f / (1.f/vertices[triangleIdx + 0].position.z * weights[0] +
 															  1.f/vertices[triangleIdx + 1].position.z * weights[1] +
 															  1.f/vertices[triangleIdx + 2].position.z * weights[2]) };
 
-						if (interpolatedDepth < m_pDepthBufferPixels[px + (py * m_Width)])
-						{
-							m_pDepthBufferPixels[px + (py * m_Width)] = interpolatedDepth;
+						if (0.f > interpolatedZDepth || interpolatedZDepth > 1.f) continue;
 
-							const Vector2 uvInterpolated{ (vertices[triangleIdx + 0].uv / vertices[triangleIdx + 0].position.z * weights[0] +
-													 vertices[triangleIdx + 1].uv / vertices[triangleIdx + 1].position.z * weights[1] +
-													 vertices[triangleIdx + 2].uv / vertices[triangleIdx + 2].position.z * weights[2]) * interpolatedDepth };
+						if (interpolatedZDepth < m_pDepthBufferPixels[px + (py * m_Width)])
+						{
+							m_pDepthBufferPixels[px + (py * m_Width)] = interpolatedZDepth;
+
+							const float interpolatedWDepth{ 1.f / (1.f / vertices[triangleIdx + 0].position.w * weights[0] +
+															  1.f / vertices[triangleIdx + 1].position.w * weights[1] +
+															  1.f / vertices[triangleIdx + 2].position.w * weights[2]) };
+
+
+							const Vector2 uvInterpolated{ (vertices[triangleIdx + 0].uv / vertices[triangleIdx + 0].position.w * weights[0] +
+													 vertices[triangleIdx + 1].uv / vertices[triangleIdx + 1].position.w * weights[1] +
+													 vertices[triangleIdx + 2].uv / vertices[triangleIdx + 2].position.w * weights[2]) * interpolatedWDepth };
 
 							finalColor = m_pTexture->Sample(uvInterpolated);
 

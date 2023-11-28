@@ -13,6 +13,7 @@ namespace dae
 	class Texture;
 	struct Mesh;
 	struct Vertex;
+	struct Vertex_Out;
 	class Timer;
 	class Scene;
 
@@ -30,16 +31,15 @@ namespace dae
 		void Update(Timer* pTimer);
 		void Render();
 
-		void Render_W2();
+		void Render_W3();
 
 		bool SaveBufferToImage() const;
 
-		void VertexTransformationFunction(const std::vector<Vertex>& vertices_in, std::vector<Vertex>& vertices_out) const;
-		void VertexTransformationFunction(const std::vector<Mesh>& meshes_in, std::vector<Mesh>& meshes_out) const;
+		void VertexTransformationFunction(std::vector<Mesh>& meshes) const;
 
-		bool IsPixelInTriangle(const std::vector<Vertex>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx = 0, const bool strip = false);
+		bool IsPixelInTriangle(const std::vector<Vertex_Out>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx = 0, const bool strip = false);
 
-		const std::vector<Vertex> CreateTriangle(const Mesh& mesh);
+		const std::vector<Vertex_Out> CreateTriangle(const Mesh& mesh);
 
 	private:
 		SDL_Window* m_pWindow{};
