@@ -47,7 +47,7 @@ namespace dae
 
 			aspectRatio = _aspectRatio;
 
-			CalculateProjectionMatrix();
+			//CalculateProjectionMatrix();
 		}
 
 		void CalculateViewMatrix()
@@ -138,6 +138,7 @@ namespace dae
 
 			//Update Matrices
 			CalculateViewMatrix();
+			CalculateProjectionMatrix();
 		}
 	};
 }

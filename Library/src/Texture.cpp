@@ -21,7 +21,7 @@ namespace dae
 
 	Texture* Texture::LoadFromFile(const std::string& path)
 	{
-		SDL_Surface* surfacePtr{ IMG_Load(path.data()) };
+		SDL_Surface* surfacePtr{ IMG_Load(path.c_str()) };
 		if (!surfacePtr)
 		{
 			return nullptr;

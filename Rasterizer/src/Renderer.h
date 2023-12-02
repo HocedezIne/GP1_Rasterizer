@@ -35,11 +35,13 @@ namespace dae
 
 		bool SaveBufferToImage() const;
 
+		void ToggleShowDepthBuffer() { m_showDepthBuffer = !m_showDepthBuffer; };
+
 		void VertexTransformationFunction(std::vector<Mesh>& meshes) const;
 
 		bool IsPixelInTriangle(const std::vector<Vertex_Out>& vertices, const Vector2& pixel, std::vector<float>& weights, const int startIdx = 0, const bool strip = false);
 
-		const std::vector<Vertex_Out> CreateTriangle(const Mesh& mesh);
+		const std::vector<Vertex_Out> CreateOrderedVertices(const Mesh& mesh);
 
 	private:
 		SDL_Window* m_pWindow{};
@@ -55,5 +57,9 @@ namespace dae
 
 		int m_Width{};
 		int m_Height{};
+
+		bool m_showDepthBuffer{ false };
+
+		std::vector<Mesh> m_ObjectMeshes;
 	};
 }

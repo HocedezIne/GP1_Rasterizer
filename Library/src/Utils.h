@@ -4,8 +4,6 @@
 #include "Maths.h"
 #include "DataTypes.h"
 
-#define DISABLE_OBJ
-
 namespace dae
 {
 	namespace Utils
