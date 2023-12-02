@@ -26,6 +26,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 
 	m_ObjectMeshes.push_back(Mesh{});
 	Utils::ParseOBJ("Resources/tuktuk.obj", m_ObjectMeshes[0].vertices, m_ObjectMeshes[0].indices);
+	m_ObjectMeshes[0].vertices_out.reserve(m_ObjectMeshes[0].vertices.size());
 
 	//Initialize Camera
 	m_Camera.Initialize((m_Width / static_cast<float>(m_Height)), 60.f, { .0f,5.f,-30.f });
@@ -41,11 +42,11 @@ void Renderer::Update(Timer* pTimer)
 {
 	m_Camera.Update(pTimer);
 
-	//Matrix rotation{ Matrix::CreateRotationY(PI_DIV_4 * pTimer->GetTotal()) };
-	//for (Mesh& mesh : m_ObjectMeshes)
-	//{
-	//	mesh.worldMatrix *= rotation;
-	//}
+	Matrix rotation{ Matrix::CreateRotationY(pTimer->GetElapsed() * PI_DIV_4) };
+	for (Mesh& mesh : m_ObjectMeshes)
+	{
+		mesh.worldMatrix *= rotation;
+	}
 }
 
 void Renderer::Render()
@@ -67,7 +68,7 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 {
 	for (int idx{}; idx < meshes.size(); ++idx)
 	{
-		Matrix worldViewProjection = /*meshes[idx].worldMatrix **/ m_Camera.viewMatrix * m_Camera.projectionMatrix;
+		Matrix worldViewProjection = meshes[idx].worldMatrix * m_Camera.viewMatrix * m_Camera.projectionMatrix;
 
 		for (int verticeIdx{}; verticeIdx < meshes[idx].vertices.size(); ++verticeIdx)
 		{
@@ -83,7 +84,7 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 			transformedPosition.x = ((transformedPosition.x + 1) / 2) * m_Width;
 			transformedPosition.y = ((1 - transformedPosition.y) / 2) * m_Height;
 
-			meshes[idx].vertices_out.push_back(Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, meshes[idx].vertices[verticeIdx].normal, meshes[idx].vertices[verticeIdx].tangent });
+			meshes[idx].vertices_out[verticeIdx] = Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, meshes[idx].vertices[verticeIdx].normal, meshes[idx].vertices[verticeIdx].tangent };
 		}
 	}
 }
@@ -198,7 +199,7 @@ void Renderer::Render_W3()
 
 							if (m_showDepthBuffer)
 							{
-								float color = Remap(interpolatedZDepth, 0.985f, 1.f);
+								float color = Remap(interpolatedZDepth, 0.995f, 1.f);
 								finalColor = { color, color, color };
 							}
 								
