@@ -55,7 +55,7 @@ void Renderer::Render()
 	//Lock BackBuffer
 	SDL_LockSurface(m_pBackBuffer);
 
-	Render_W3();
+	Render_W4();
 
 	//@END
 	//Update SDL Surface
@@ -136,7 +136,7 @@ bool Renderer::SaveBufferToImage() const
 	return SDL_SaveBMP(m_pBackBuffer, "Rasterizer_ColorBuffer.bmp");
 }
 
-void Renderer::Render_W3()
+void Renderer::Render_W4()
 {
 	VertexTransformationFunction(m_ObjectMeshes);
 
@@ -216,7 +216,9 @@ void Renderer::Render_W3()
 								uvInterpolated.x = Clamp(uvInterpolated.x, 0.f, 1.f);
 								uvInterpolated.y = Clamp(uvInterpolated.y, 0.f, 1.f);
 
-								finalColor = m_pTexture->Sample(uvInterpolated);
+								//finalColor = m_pTexture->Sample(uvInterpolated);
+
+								
 							}
 
 							//Update Color in Buffer

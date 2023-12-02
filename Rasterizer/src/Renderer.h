@@ -31,7 +31,7 @@ namespace dae
 		void Update(Timer* pTimer);
 		void Render();
 
-		void Render_W3();
+		void Render_W4();
 
 		bool SaveBufferToImage() const;
 
