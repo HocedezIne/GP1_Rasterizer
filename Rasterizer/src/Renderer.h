@@ -35,7 +35,10 @@ namespace dae
 
 		bool SaveBufferToImage() const;
 
+		int CycleShadingMode();
 		void ToggleShowDepthBuffer() { m_showDepthBuffer = !m_showDepthBuffer; };
+		void ToggleRotation() { m_doesRotate = !m_doesRotate; };
+		void ToggleUseNormals() { m_useNormals = !m_useNormals; };
 
 		void VertexTransformationFunction(std::vector<Mesh>& meshes) const;
 
@@ -58,7 +61,18 @@ namespace dae
 		int m_Width{};
 		int m_Height{};
 
+		enum class ShadingMode
+		{
+			ObservedAreaOnly,
+			Diffuse, // includes OA
+			Specular, // includes OA
+			Combined
+		};
+
+		ShadingMode m_CurrentShadingMode{ ShadingMode::Combined };
 		bool m_showDepthBuffer{ false };
+		bool m_doesRotate{ true };
+		bool m_useNormals{ true };
 
 		std::vector<Mesh> m_ObjectMeshes;
 	};

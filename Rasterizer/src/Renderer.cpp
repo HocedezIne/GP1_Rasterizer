@@ -42,11 +42,20 @@ void Renderer::Update(Timer* pTimer)
 {
 	m_Camera.Update(pTimer);
 
-	Matrix rotation{ Matrix::CreateRotationY(pTimer->GetElapsed() * PI_DIV_4) };
-	for (Mesh& mesh : m_ObjectMeshes)
+	if (m_doesRotate)
 	{
-		mesh.worldMatrix *= rotation;
+		Matrix rotation{ Matrix::CreateRotationY(pTimer->GetElapsed() * PI_DIV_4) };
+		for (Mesh& mesh : m_ObjectMeshes)
+		{
+			mesh.worldMatrix *= rotation;
+		}
 	}
+}
+
+int Renderer::CycleShadingMode()
+{
+	m_CurrentShadingMode = static_cast<ShadingMode>((int(m_CurrentShadingMode) + 1) % 4);
+	return int(m_CurrentShadingMode);
 }
 
 void Renderer::Render()
@@ -74,6 +83,8 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 		{
 			Vector4 transformedPosition{ meshes[idx].vertices[verticeIdx].position, 1.f };
 			transformedPosition = worldViewProjection.TransformPoint(transformedPosition);
+			const Vector3 transformedNormal{ meshes[idx].worldMatrix.TransformVector(meshes[idx].vertices[verticeIdx].normal).Normalized()};
+			const Vector3 transformedTangent{ meshes[idx].worldMatrix.TransformVector(meshes[idx].vertices[verticeIdx].tangent)/*.Normalized()*/};
 
 			// perspective divide
 			transformedPosition.x /= transformedPosition.w;
@@ -84,7 +95,7 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 			transformedPosition.x = ((transformedPosition.x + 1) / 2) * m_Width;
 			transformedPosition.y = ((1 - transformedPosition.y) / 2) * m_Height;
 
-			meshes[idx].vertices_out[verticeIdx] = Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, meshes[idx].vertices[verticeIdx].normal, meshes[idx].vertices[verticeIdx].tangent };
+			meshes[idx].vertices_out[verticeIdx] = Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, transformedNormal, transformedTangent };
 		}
 	}
 }
@@ -193,31 +204,55 @@ void Renderer::Render_W4()
 						{
 							m_pDepthBufferPixels[px + (py * m_Width)] = interpolatedZDepth;
 
-							//const float interpolatedWDepth{ 1.f / (1.f / vertices[triangleIdx + 0].position.w * weights[0] +
-							//								  1.f / vertices[triangleIdx + 1].position.w * weights[1] +
-							//								  1.f / vertices[triangleIdx + 2].position.w * weights[2]) };
-
 							if (m_showDepthBuffer)
 							{
 								float color = Remap(interpolatedZDepth, 0.995f, 1.f);
 								finalColor = { color, color, color };
 							}
-								
 							else
 							{
 								const float wDepth{ 1 / ((1 / vertices[triangleIdx + 0].position.w) * weights[0] +
 														 (1 / vertices[triangleIdx + 1].position.w) * weights[1] +
 														 (1 / vertices[triangleIdx + 2].position.w) * weights[2]) };
 
+								// interpolate all attributes
+								const ColorRGB colorInterpolated{ (vertices[triangleIdx + 0].color / vertices[triangleIdx + 0].position.w * weights[0] +
+																  vertices[triangleIdx + 1].color / vertices[triangleIdx + 1].position.w * weights[1] +
+																  vertices[triangleIdx + 2].color / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
+
 								Vector2 uvInterpolated{ (vertices[triangleIdx + 0].uv / vertices[triangleIdx + 0].position.w * weights[0] +
 													 vertices[triangleIdx + 1].uv / vertices[triangleIdx + 1].position.w * weights[1] +
 													 vertices[triangleIdx + 2].uv / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
-
 								uvInterpolated.x = Clamp(uvInterpolated.x, 0.f, 1.f);
 								uvInterpolated.y = Clamp(uvInterpolated.y, 0.f, 1.f);
 
-								//finalColor = m_pTexture->Sample(uvInterpolated);
+								const Vector3 normalInterpolated{ (vertices[triangleIdx + 0].normal / vertices[triangleIdx + 0].position.w * weights[0] +
+																   vertices[triangleIdx + 1].normal / vertices[triangleIdx + 1].position.w * weights[1] +
+																   vertices[triangleIdx + 2].normal / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
 
+								const Vector3 tangentInterpolated{ (vertices[triangleIdx + 0].tangent / vertices[triangleIdx + 0].position.w * weights[0] +
+																    vertices[triangleIdx + 1].tangent / vertices[triangleIdx + 1].position.w * weights[1] +
+																    vertices[triangleIdx + 2].tangent / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
+
+								const Vertex_Out vertexInfo{ {}, colorInterpolated, uvInterpolated, normalInterpolated, tangentInterpolated };
+
+								// shading
+								// THIS DOESN'T WORK AS INTENDED
+								switch (m_CurrentShadingMode)
+								{
+								default:
+									finalColor = { 0.f, 1.f, 0.f };
+									// intentionally no break to waterfall as Observed Area is used by all shaing modes
+								case dae::Renderer::ShadingMode::Diffuse:
+
+									break;
+								case dae::Renderer::ShadingMode::Specular:
+
+									break;
+								case dae::Renderer::ShadingMode::Combined:
+
+									break;
+								}
 								
 							}
 
