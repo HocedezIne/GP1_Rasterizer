@@ -47,6 +47,7 @@ namespace dae
 		const std::vector<Vertex_Out> CreateOrderedVertices(const Mesh& mesh);
 
 		ColorRGB PixelShading(const Vertex_Out& v);
+		ColorRGB Lambert(const float refectance, const ColorRGB color);
 
 	private:
 		SDL_Window* m_pWindow{};

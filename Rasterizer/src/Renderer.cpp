@@ -162,13 +162,18 @@ ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 	case dae::Renderer::ShadingMode::ObservedAreaOnly:
 		return {observedArea, observedArea, observedArea};
 	case dae::Renderer::ShadingMode::Diffuse:
-		return m_pDiffuseTexture->Sample(v.uv) * observedArea;
+		return Lambert(1.f, m_pDiffuseTexture->Sample(v.uv)) * observedArea * m_LightIntensity;
 	case dae::Renderer::ShadingMode::Specular:
 		return {};
 	case dae::Renderer::ShadingMode::Combined:
 		return {};
 	}
 
+}
+
+ColorRGB Renderer::Lambert(const float refectance, const ColorRGB color)
+{
+	return { (color * refectance) / PI };
 }
 
 bool Renderer::SaveBufferToImage() const
