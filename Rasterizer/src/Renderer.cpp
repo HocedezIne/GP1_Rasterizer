@@ -59,7 +59,7 @@ void Renderer::Update(Timer* pTimer)
 
 	if (m_doesRotate)
 	{
-		Matrix rotation{ Matrix::CreateRotationY(pTimer->GetElapsed() * PI_DIV_4) };
+		Matrix rotation{ Matrix::CreateRotationY(pTimer->GetElapsed()) };
 		for (Mesh& mesh : m_ObjectMeshes)
 		{
 			mesh.worldMatrix = rotation * mesh.worldMatrix;
@@ -188,7 +188,7 @@ ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 	case dae::Renderer::ShadingMode::Diffuse:
 		return Lambert(1.f, m_pDiffuseTexture->Sample(v.uv)) * observedArea * m_LightIntensity;
 	case dae::Renderer::ShadingMode::Specular:
-		return Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection, -v.viewDirection, v.normal) * observedArea;
+		return Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection.Normalized(), -v.viewDirection, v.normal) * observedArea;
 	case dae::Renderer::ShadingMode::Combined:
 		return (Lambert(1.f, m_pDiffuseTexture->Sample(v.uv)) * m_LightIntensity + Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection, -v.viewDirection, v.normal)) * observedArea;
 	}
