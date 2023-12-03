@@ -47,7 +47,8 @@ namespace dae
 		const std::vector<Vertex_Out> CreateOrderedVertices(const Mesh& mesh);
 
 		ColorRGB PixelShading(const Vertex_Out& v);
-		ColorRGB Lambert(const float refectance, const ColorRGB color);
+		static inline ColorRGB Lambert(const float refectance, const ColorRGB color);
+		static ColorRGB Phong(const float reflection, const float exponent, const Vector3& l, const Vector3& v, const Vector3& n);
 
 	private:
 		SDL_Window* m_pWindow{};
@@ -60,6 +61,8 @@ namespace dae
 
 		Texture* m_pDiffuseTexture{ nullptr };
 		Texture* m_pNormalTexture{ nullptr };
+		Texture* m_pSpecularTexture{ nullptr };
+		Texture* m_pGlossinessTexture{ nullptr };
 
 		Camera m_Camera{};
 

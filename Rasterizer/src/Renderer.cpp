@@ -24,6 +24,8 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	m_pDepthBufferPixels = new float[m_Width * m_Height];
 	m_pDiffuseTexture = Texture::LoadFromFile("Resources/vehicle_diffuse.png");
 	m_pNormalTexture = Texture::LoadFromFile("Resources/vehicle_normal.png");
+	m_pSpecularTexture = Texture::LoadFromFile("Resources/vehicle_specular.png");
+	m_pGlossinessTexture = Texture::LoadFromFile("Resources/vehicle_gloss.png");
 
 	Mesh mesh{};
 	mesh.worldMatrix = Matrix::CreateScale(1.f, 1.f, 1.f) * Matrix::CreateRotationY(90.f * TO_RADIANS) * Matrix::CreateTranslation(0.f, 0.f, 50.f);
@@ -47,6 +49,8 @@ Renderer::~Renderer()
 	delete[] m_pDepthBufferPixels;
 	delete m_pDiffuseTexture;
 	delete m_pNormalTexture;
+	delete m_pSpecularTexture;
+	delete m_pGlossinessTexture;
 }
 
 void Renderer::Update(Timer* pTimer)
@@ -92,11 +96,12 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 		meshes[idx].vertices_out.clear();
 
 		for (int verticeIdx{}; verticeIdx < meshes[idx].vertices.size(); ++verticeIdx)
-		{
+		{			
 			Vector4 transformedPosition{ meshes[idx].vertices[verticeIdx].position, 1.f };
 			transformedPosition = worldViewProjection.TransformPoint(transformedPosition);
 			const Vector3 transformedNormal{ meshes[idx].worldMatrix.TransformVector(meshes[idx].vertices[verticeIdx].normal).Normalized()};
 			const Vector3 transformedTangent{ meshes[idx].worldMatrix.TransformVector(meshes[idx].vertices[verticeIdx].tangent)/*.Normalized()*/};
+			const Vector3 viewDirection{ (meshes[idx].worldMatrix.TransformVector(meshes[idx].vertices[verticeIdx].position) - m_Camera.origin).Normalized()};
 
 			// perspective divide
 			transformedPosition.x /= transformedPosition.w;
@@ -107,7 +112,7 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 			transformedPosition.x = ((transformedPosition.x + 1) / 2) * m_Width;
 			transformedPosition.y = ((1 - transformedPosition.y) / 2) * m_Height;
 
-			meshes[idx].vertices_out.push_back(Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, transformedNormal, transformedTangent });
+			meshes[idx].vertices_out.push_back(Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, transformedNormal, transformedTangent, viewDirection });
 		}
 	}
 }
@@ -183,9 +188,9 @@ ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 	case dae::Renderer::ShadingMode::Diffuse:
 		return Lambert(1.f, m_pDiffuseTexture->Sample(v.uv)) * observedArea * m_LightIntensity;
 	case dae::Renderer::ShadingMode::Specular:
-		return {};
+		return Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection, -v.viewDirection, v.normal) * observedArea;
 	case dae::Renderer::ShadingMode::Combined:
-		return {};
+		return (Lambert(1.f, m_pDiffuseTexture->Sample(v.uv)) * m_LightIntensity + Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection, -v.viewDirection, v.normal)) * observedArea;
 	}
 
 }
@@ -193,6 +198,14 @@ ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 ColorRGB Renderer::Lambert(const float refectance, const ColorRGB color)
 {
 	return { (color * refectance) / PI };
+}
+
+ColorRGB Renderer::Phong(const float reflection, const float exponent, const Vector3& l, const Vector3& v, const Vector3& n)
+{
+	const Vector3 reflect{ l - 2 * Vector3::Dot(n,l) * n };
+	const float cosAlpha{ std::max(Vector3::Dot(reflect, -v), 0.f) };
+	const float specular{ reflection * powf(cosAlpha, exponent) };
+	return { specular, specular, specular };
 }
 
 bool Renderer::SaveBufferToImage() const
@@ -286,8 +299,12 @@ void Renderer::Render_W4()
 								const Vector3 tangentInterpolated{ (vertices[triangleIdx + 0].tangent / vertices[triangleIdx + 0].position.w * weights[0] +
 																    vertices[triangleIdx + 1].tangent / vertices[triangleIdx + 1].position.w * weights[1] +
 																    vertices[triangleIdx + 2].tangent / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
+								
+								const Vector3 viewDirectionInterpolated{ (vertices[triangleIdx + 0].viewDirection / vertices[triangleIdx + 0].position.w * weights[0] +
+																          vertices[triangleIdx + 1].viewDirection / vertices[triangleIdx + 1].position.w * weights[1] +
+																          vertices[triangleIdx + 2].viewDirection / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
 
-								const Vertex_Out vertexInfo{ {}, colorInterpolated, uvInterpolated, normalInterpolated, tangentInterpolated };
+								const Vertex_Out vertexInfo{ {}, colorInterpolated, uvInterpolated, normalInterpolated, tangentInterpolated, viewDirectionInterpolated};
 
 								finalColor = PixelShading(vertexInfo);
 							}
