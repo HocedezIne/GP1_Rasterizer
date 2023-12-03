@@ -23,6 +23,7 @@ Renderer::Renderer(SDL_Window* pWindow) :
 
 	m_pDepthBufferPixels = new float[m_Width * m_Height];
 	m_pDiffuseTexture = Texture::LoadFromFile("Resources/vehicle_diffuse.png");
+	m_pNormalTexture = Texture::LoadFromFile("Resources/vehicle_normal.png");
 
 	Mesh mesh{};
 	mesh.worldMatrix = Matrix::CreateScale(1.f, 1.f, 1.f) * Matrix::CreateRotationY(90.f * TO_RADIANS) * Matrix::CreateTranslation(0.f, 0.f, 50.f);
@@ -45,6 +46,7 @@ Renderer::~Renderer()
 {
 	delete[] m_pDepthBufferPixels;
 	delete m_pDiffuseTexture;
+	delete m_pNormalTexture;
 }
 
 void Renderer::Update(Timer* pTimer)
@@ -154,7 +156,24 @@ const std::vector<Vertex_Out> Renderer::CreateOrderedVertices(const Mesh& mesh)
 
 ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 {
-	const float observedArea = Vector3::Dot(v.normal, -m_LightDirection);
+	float observedArea{};
+	if (m_useNormals)
+	{
+		// create tangent space transformation matrix
+		const Vector3 binormal{ Vector3::Cross(v.normal, v.tangent) };
+		Matrix tangentScapeAxis{ v.tangent, binormal, v.normal, {} };
+
+		const ColorRGB normalMapSample{ m_pNormalTexture->Sample(v.uv) };
+		Vector3 normal{ 2.f * normalMapSample.r - 1.f, 2.f * normalMapSample.g - 1.f, 2.f * normalMapSample.b - 1.f };
+		normal = tangentScapeAxis.TransformVector(normal);
+
+		observedArea = Vector3::Dot(normal, -m_LightDirection);
+	}
+	else 
+	{
+		observedArea = Vector3::Dot(v.normal, -m_LightDirection);
+	}
+
 	if (observedArea <= 0.f) return {};
 
 	switch (m_CurrentShadingMode)
