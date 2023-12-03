@@ -29,7 +29,6 @@ Renderer::Renderer(SDL_Window* pWindow) :
 
 	m_ObjectMeshes.push_back(Mesh{});
 	Utils::ParseOBJ("Resources/vehicle.obj", m_ObjectMeshes[0].vertices, m_ObjectMeshes[0].indices);
-	m_ObjectMeshes[0].vertices_out.reserve(m_ObjectMeshes[0].vertices.size());
 	m_ObjectMeshes[0].worldMatrix = mesh.worldMatrix;
 
 	//Initialize Camera
@@ -88,6 +87,7 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 	for (int idx{}; idx < meshes.size(); ++idx)
 	{
 		Matrix worldViewProjection = meshes[idx].worldMatrix * m_Camera.viewMatrix * m_Camera.projectionMatrix;
+		meshes[idx].vertices_out.clear();
 
 		for (int verticeIdx{}; verticeIdx < meshes[idx].vertices.size(); ++verticeIdx)
 		{
@@ -105,7 +105,7 @@ void Renderer::VertexTransformationFunction(std::vector<Mesh>& meshes) const
 			transformedPosition.x = ((transformedPosition.x + 1) / 2) * m_Width;
 			transformedPosition.y = ((1 - transformedPosition.y) / 2) * m_Height;
 
-			meshes[idx].vertices_out[verticeIdx] = Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, transformedNormal, transformedTangent };
+			meshes[idx].vertices_out.push_back(Vertex_Out{ transformedPosition, meshes[idx].vertices[verticeIdx].color, meshes[idx].vertices[verticeIdx].uv, transformedNormal, transformedTangent });
 		}
 	}
 }
@@ -154,6 +154,20 @@ const std::vector<Vertex_Out> Renderer::CreateOrderedVertices(const Mesh& mesh)
 
 ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 {
+	const float observedArea = Vector3::Dot(v.normal, -m_LightDirection);
+	if (observedArea <= 0.f) return {};
+
+	switch (m_CurrentShadingMode)
+	{
+	case dae::Renderer::ShadingMode::ObservedAreaOnly:
+		return {observedArea, observedArea, observedArea};
+	case dae::Renderer::ShadingMode::Diffuse:
+		return m_pDiffuseTexture->Sample(v.uv) * observedArea;
+	case dae::Renderer::ShadingMode::Specular:
+		return {};
+	case dae::Renderer::ShadingMode::Combined:
+		return {};
+	}
 
 }
 
@@ -251,21 +265,7 @@ void Renderer::Render_W4()
 
 								const Vertex_Out vertexInfo{ {}, colorInterpolated, uvInterpolated, normalInterpolated, tangentInterpolated };
 
-								// shading
-								finalColor = m_pDiffuseTexture->Sample(uvInterpolated);
-
-								switch (m_CurrentShadingMode)
-								{
-								case dae::Renderer::ShadingMode::ObservedAreaOnly:
-									break;
-								case dae::Renderer::ShadingMode::Diffuse:
-									break;
-								case dae::Renderer::ShadingMode::Specular:
-									break;
-								case dae::Renderer::ShadingMode::Combined:
-									break;
-								}
-								
+								finalColor = PixelShading(vertexInfo);
 							}
 
 							//Update Color in Buffer
