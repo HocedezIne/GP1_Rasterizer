@@ -46,6 +46,8 @@ namespace dae
 
 		const std::vector<Vertex_Out> CreateOrderedVertices(const Mesh& mesh);
 
+		ColorRGB PixelShading(const Vertex_Out& v);
+
 	private:
 		SDL_Window* m_pWindow{};
 
@@ -54,7 +56,7 @@ namespace dae
 		uint32_t* m_pBackBufferPixels{};
 
 		float* m_pDepthBufferPixels{};
-		Texture* m_pTexture{ nullptr };
+		Texture* m_pDiffuseTexture{ nullptr };
 
 		Camera m_Camera{};
 
@@ -73,6 +75,11 @@ namespace dae
 		bool m_showDepthBuffer{ false };
 		bool m_doesRotate{ true };
 		bool m_useNormals{ true };
+
+		Vector3 m_LightDirection;
+		float m_LightIntensity;
+		float m_Shininess;
+		Vector3 m_Ambient;
 
 		std::vector<Mesh> m_ObjectMeshes;
 	};

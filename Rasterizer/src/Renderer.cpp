@@ -22,20 +22,30 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	m_pBackBufferPixels = (uint32_t*)m_pBackBuffer->pixels;
 
 	m_pDepthBufferPixels = new float[m_Width * m_Height];
-	m_pTexture = Texture::LoadFromFile("Resources/tuktuk.png");
+	m_pDiffuseTexture = Texture::LoadFromFile("Resources/vehicle_diffuse.png");
+
+	Mesh mesh{};
+	mesh.worldMatrix = Matrix::CreateScale(1.f, 1.f, 1.f) * Matrix::CreateRotationY(90.f * TO_RADIANS) * Matrix::CreateTranslation(0.f, 0.f, 50.f);
 
 	m_ObjectMeshes.push_back(Mesh{});
-	Utils::ParseOBJ("Resources/tuktuk.obj", m_ObjectMeshes[0].vertices, m_ObjectMeshes[0].indices);
+	Utils::ParseOBJ("Resources/vehicle.obj", m_ObjectMeshes[0].vertices, m_ObjectMeshes[0].indices);
 	m_ObjectMeshes[0].vertices_out.reserve(m_ObjectMeshes[0].vertices.size());
+	m_ObjectMeshes[0].worldMatrix = mesh.worldMatrix;
 
 	//Initialize Camera
-	m_Camera.Initialize((m_Width / static_cast<float>(m_Height)), 60.f, { .0f,5.f,-30.f });
+	m_Camera.Initialize((m_Width / static_cast<float>(m_Height)), 45.f, { 0.f,0.f,0.f });
+
+	// Lights
+	m_LightDirection = Vector3{ 0.577f, -0.577f, 0.577f };
+	m_LightIntensity = 7.f;
+	m_Shininess = 25.f;
+	m_Ambient = Vector3{ 0.025f, 0.025f, 0.025f };
 }
 
 Renderer::~Renderer()
 {
 	delete[] m_pDepthBufferPixels;
-	delete m_pTexture;
+	delete m_pDiffuseTexture;
 }
 
 void Renderer::Update(Timer* pTimer)
@@ -47,7 +57,7 @@ void Renderer::Update(Timer* pTimer)
 		Matrix rotation{ Matrix::CreateRotationY(pTimer->GetElapsed() * PI_DIV_4) };
 		for (Mesh& mesh : m_ObjectMeshes)
 		{
-			mesh.worldMatrix *= rotation;
+			mesh.worldMatrix = rotation * mesh.worldMatrix;
 		}
 	}
 }
@@ -140,6 +150,11 @@ const std::vector<Vertex_Out> Renderer::CreateOrderedVertices(const Mesh& mesh)
 	}
 
 	return result;
+}
+
+ColorRGB Renderer::PixelShading(const Vertex_Out& v)
+{
+
 }
 
 bool Renderer::SaveBufferToImage() const
@@ -237,20 +252,17 @@ void Renderer::Render_W4()
 								const Vertex_Out vertexInfo{ {}, colorInterpolated, uvInterpolated, normalInterpolated, tangentInterpolated };
 
 								// shading
-								// THIS DOESN'T WORK AS INTENDED
+								finalColor = m_pDiffuseTexture->Sample(uvInterpolated);
+
 								switch (m_CurrentShadingMode)
 								{
-								default:
-									finalColor = { 0.f, 1.f, 0.f };
-									// intentionally no break to waterfall as Observed Area is used by all shaing modes
+								case dae::Renderer::ShadingMode::ObservedAreaOnly:
+									break;
 								case dae::Renderer::ShadingMode::Diffuse:
-
 									break;
 								case dae::Renderer::ShadingMode::Specular:
-
 									break;
 								case dae::Renderer::ShadingMode::Combined:
-
 									break;
 								}
 								
