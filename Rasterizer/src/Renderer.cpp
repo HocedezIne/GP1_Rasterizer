@@ -240,11 +240,17 @@ void Renderer::Render_W4()
 
 		for (int triangleIdx{}; triangleIdx < loopLenght; triangleIdx += increment)
 		{
+			// check if triangle is inside frustum or cull
+			if (vertices[triangleIdx + 0].position.x < 0 || vertices[triangleIdx + 0].position.x > m_Width || vertices[triangleIdx + 0].position.y < 0 || vertices[triangleIdx + 0].position.y > m_Height) continue;
+			if (vertices[triangleIdx + 1].position.x < 0 || vertices[triangleIdx + 1].position.x > m_Width || vertices[triangleIdx + 1].position.y < 0 || vertices[triangleIdx + 1].position.y > m_Height) continue;
+			if (vertices[triangleIdx + 2].position.x < 0 || vertices[triangleIdx + 2].position.x > m_Width || vertices[triangleIdx + 2].position.y < 0 || vertices[triangleIdx + 2].position.y > m_Height) continue;
+
 			// calc bounding box
-			boundingBoxTopLeft.first = std::max(0, std::min(int(std::min(vertices[triangleIdx].position.x, std::min(vertices[triangleIdx + 1].position.x, vertices[triangleIdx + 2].position.x))), m_Width - 1));
-			boundingBoxTopLeft.second = std::max(0, std::min(int(std::min(vertices[triangleIdx].position.y, std::min(vertices[triangleIdx + 1].position.y, vertices[triangleIdx + 2].position.y))), m_Height - 1));
-			boundingBoxBottomRight.first = std::max(0, std::min(int(std::max(vertices[triangleIdx].position.x, std::max(vertices[triangleIdx + 1].position.x, vertices[triangleIdx + 2].position.x))), m_Width - 1));
-			boundingBoxBottomRight.second = std::max(0, std::min(int(std::max(vertices[triangleIdx].position.y, std::max(vertices[triangleIdx + 1].position.y, vertices[triangleIdx + 2].position.y))), m_Height - 1));
+			const int boundingBoxMargin{ 1 };
+			boundingBoxTopLeft.first      = Clamp(int(std::min({ vertices[triangleIdx].position.x, vertices[triangleIdx + 1].position.x, vertices[triangleIdx + 2].position.x })) - boundingBoxMargin, 0, m_Width - 1);
+			boundingBoxTopLeft.second     = Clamp(int(std::min({ vertices[triangleIdx].position.y, vertices[triangleIdx + 1].position.y, vertices[triangleIdx + 2].position.y })) - boundingBoxMargin, 0, m_Height - 1);
+			boundingBoxBottomRight.first  = Clamp(int(std::max({ vertices[triangleIdx].position.x, vertices[triangleIdx + 1].position.x, vertices[triangleIdx + 2].position.x })) + boundingBoxMargin, 0, m_Width - 1);
+			boundingBoxBottomRight.second = Clamp(int(std::max({ vertices[triangleIdx].position.y, vertices[triangleIdx + 1].position.y, vertices[triangleIdx + 2].position.y })) + boundingBoxMargin, 0, m_Height - 1);
 
 			for (int px{ boundingBoxTopLeft.first }; px < boundingBoxBottomRight.first; ++px)
 			{
@@ -259,14 +265,12 @@ void Renderer::Render_W4()
 						weights[1] /= triangleArea;
 						weights[2] /= triangleArea;
 
-						// check if pixel's depth value is smaller then stored one in depth buffer
+						// check if pixel's depth value is smaller then stored one in depth buffer and inside [0,1] range
 						const float interpolatedZDepth{ 1 / ((1 / vertices[triangleIdx + 0].position.z) * weights[0] +
 															 (1 / vertices[triangleIdx + 1].position.z) * weights[1] +
 															 (1 / vertices[triangleIdx + 2].position.z) * weights[2]) };
 
-						if (0.f > interpolatedZDepth || interpolatedZDepth > 1.f) continue;
-
-						if (interpolatedZDepth < m_pDepthBufferPixels[px + (py * m_Width)])
+						if (interpolatedZDepth > 0.f && interpolatedZDepth < 1.f && interpolatedZDepth < m_pDepthBufferPixels[px + (py * m_Width)])
 						{
 							m_pDepthBufferPixels[px + (py * m_Width)] = interpolatedZDepth;
 
