@@ -46,6 +46,10 @@ namespace dae
 
 		const std::vector<Vertex_Out> CreateOrderedVertices(const Mesh& mesh);
 
+		const Vertex_Out InterpolatedVertexAtrributes(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2, const std::vector<float> weights);
+
+		bool IsOutsideFrustum(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2);
+
 		ColorRGB PixelShading(const Vertex_Out& v);
 		static inline ColorRGB Lambert(const float refectance, const ColorRGB color);
 		static ColorRGB Phong(const float reflection, const float exponent, const Vector3& l, const Vector3& v, const Vector3& n);
@@ -83,9 +87,8 @@ namespace dae
 		bool m_useNormals{ true };
 
 		Vector3 m_LightDirection;
-		float m_LightIntensity;
 		float m_Shininess;
-		Vector3 m_Ambient;
+		ColorRGB m_Ambient;
 
 		std::vector<Mesh> m_ObjectMeshes;
 	};

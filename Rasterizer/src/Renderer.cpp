@@ -27,21 +27,16 @@ Renderer::Renderer(SDL_Window* pWindow) :
 	m_pSpecularTexture = Texture::LoadFromFile("Resources/vehicle_specular.png");
 	m_pGlossinessTexture = Texture::LoadFromFile("Resources/vehicle_gloss.png");
 
-	Mesh mesh{};
-	mesh.worldMatrix = Matrix::CreateScale(1.f, 1.f, 1.f) * Matrix::CreateRotationY(90.f * TO_RADIANS) * Matrix::CreateTranslation(0.f, 0.f, 50.f);
-
 	m_ObjectMeshes.push_back(Mesh{});
 	Utils::ParseOBJ("Resources/vehicle.obj", m_ObjectMeshes[0].vertices, m_ObjectMeshes[0].indices);
-	m_ObjectMeshes[0].worldMatrix = mesh.worldMatrix;
 
 	//Initialize Camera
-	m_Camera.Initialize((m_Width / static_cast<float>(m_Height)), 45.f, { 0.f,0.f,0.f });
+	m_Camera.Initialize((m_Width / static_cast<float>(m_Height)), 45.f, { 0.f,5.f,-64.f });
 
 	// Lights
 	m_LightDirection = Vector3{ 0.577f, -0.577f, 0.577f };
-	m_LightIntensity = 7.f;
 	m_Shininess = 25.f;
-	m_Ambient = Vector3{ 0.025f, 0.025f, 0.025f };
+	m_Ambient = ColorRGB{ 0.03f, 0.03f, 0.03f };
 }
 
 Renderer::~Renderer()
@@ -159,6 +154,56 @@ const std::vector<Vertex_Out> Renderer::CreateOrderedVertices(const Mesh& mesh)
 	return result;
 }
 
+const Vertex_Out Renderer::InterpolatedVertexAtrributes(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2, const std::vector<float> weights)
+{
+	const float wDepth{ 1 / ((1 / v0.position.w) * weights[0] +
+							 (1 / v1.position.w) * weights[1] +
+							 (1 / v2.position.w) * weights[2]) };
+
+	// interpolate all attributes
+	const ColorRGB colorInterpolated{ (v0.color / v0.position.w * weights[0] +
+									   v1.color / v1.position.w * weights[1] +
+									   v2.color / v2.position.w * weights[2]) * wDepth };
+
+	Vector2 uvInterpolated{ (v0.uv / v0.position.w * weights[0] +
+						     v1.uv / v1.position.w * weights[1] +
+						     v2.uv / v2.position.w * weights[2]) * wDepth };
+	uvInterpolated.x = Clamp(uvInterpolated.x, 0.f, 1.f);
+	uvInterpolated.y = Clamp(uvInterpolated.y, 0.f, 1.f);
+
+	const Vector3 normalInterpolated{ (v0.normal / v0.position.w * weights[0] +
+									   v1.normal / v1.position.w * weights[1] +
+									   v2.normal / v2.position.w * weights[2]) * wDepth };
+
+	const Vector3 tangentInterpolated{ (v0.tangent / v0.position.w * weights[0] +
+										v1.tangent / v1.position.w * weights[1] +
+										v2.tangent / v2.position.w * weights[2]) * wDepth };
+
+	const Vector3 viewDirectionInterpolated{ (v0.viewDirection / v0.position.w * weights[0] +
+											  v1.viewDirection / v1.position.w * weights[1] +
+											  v2.viewDirection / v2.position.w * weights[2]) * wDepth };
+
+	return Vertex_Out{ {}, colorInterpolated, uvInterpolated, normalInterpolated, tangentInterpolated, viewDirectionInterpolated };
+}
+
+bool Renderer::IsOutsideFrustum(const Vertex_Out& v0, const Vertex_Out& v1, const Vertex_Out& v2)
+{
+	if (v0.position.x < 0 || v0.position.x > m_Width || v0.position.y < 0 || v0.position.y > m_Height)
+	{
+		return true;
+	}
+	if (v1.position.x < 0 || v1.position.x > m_Width || v1.position.y < 0 || v1.position.y > m_Height) 
+	{
+		return true;
+	}
+	if (v2.position.x < 0 || v2.position.x > m_Width || v2.position.y < 0 || v2.position.y > m_Height)
+	{
+		return true;
+	}
+
+	return false;
+}
+
 ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 {
 	float observedArea{};
@@ -186,11 +231,11 @@ ColorRGB Renderer::PixelShading(const Vertex_Out& v)
 	case dae::Renderer::ShadingMode::ObservedAreaOnly:
 		return {observedArea, observedArea, observedArea};
 	case dae::Renderer::ShadingMode::Diffuse:
-		return Lambert(1.f, m_pDiffuseTexture->Sample(v.uv)) * observedArea * m_LightIntensity;
+		return Lambert(7.f, m_pDiffuseTexture->Sample(v.uv)) * observedArea;
 	case dae::Renderer::ShadingMode::Specular:
-		return Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection.Normalized(), -v.viewDirection, v.normal) * observedArea;
+		return Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection, -v.viewDirection, v.normal) * observedArea;
 	case dae::Renderer::ShadingMode::Combined:
-		return (Lambert(1.f, m_pDiffuseTexture->Sample(v.uv)) * m_LightIntensity + Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection, -v.viewDirection, v.normal)) * observedArea;
+		return (Lambert(7.f, m_pDiffuseTexture->Sample(v.uv)) + Phong(m_pSpecularTexture->Sample(v.uv).r, m_pGlossinessTexture->Sample(v.uv).r * m_Shininess, m_LightDirection, -v.viewDirection, v.normal) + m_Ambient) * observedArea;
 	}
 
 }
@@ -202,8 +247,9 @@ ColorRGB Renderer::Lambert(const float refectance, const ColorRGB color)
 
 ColorRGB Renderer::Phong(const float reflection, const float exponent, const Vector3& l, const Vector3& v, const Vector3& n)
 {
-	const Vector3 reflect{ l - 2 * Vector3::Dot(n,l) * n };
-	const float cosAlpha{ std::max(Vector3::Dot(reflect, -v), 0.f) };
+	const float dot{ Vector3::Dot(n,l) };
+	const Vector3 reflect{ l - (2 * dot * n) };
+	const float cosAlpha{ std::max(Vector3::Dot(reflect, v), 0.f) };
 	const float specular{ reflection * powf(cosAlpha, exponent) };
 	return { specular, specular, specular };
 }
@@ -241,9 +287,10 @@ void Renderer::Render_W4()
 		for (int triangleIdx{}; triangleIdx < loopLenght; triangleIdx += increment)
 		{
 			// check if triangle is inside frustum or cull
-			if (vertices[triangleIdx + 0].position.x < 0 || vertices[triangleIdx + 0].position.x > m_Width || vertices[triangleIdx + 0].position.y < 0 || vertices[triangleIdx + 0].position.y > m_Height) continue;
-			if (vertices[triangleIdx + 1].position.x < 0 || vertices[triangleIdx + 1].position.x > m_Width || vertices[triangleIdx + 1].position.y < 0 || vertices[triangleIdx + 1].position.y > m_Height) continue;
-			if (vertices[triangleIdx + 2].position.x < 0 || vertices[triangleIdx + 2].position.x > m_Width || vertices[triangleIdx + 2].position.y < 0 || vertices[triangleIdx + 2].position.y > m_Height) continue;
+			if (IsOutsideFrustum(vertices[triangleIdx], vertices[triangleIdx + 1], vertices[triangleIdx + 2]))
+			{
+				continue;
+			}
 
 			// calc bounding box
 			const int boundingBoxMargin{ 1 };
@@ -279,39 +326,7 @@ void Renderer::Render_W4()
 								float color = Remap(interpolatedZDepth, 0.995f, 1.f);
 								finalColor = { color, color, color };
 							}
-							else
-							{
-								const float wDepth{ 1 / ((1 / vertices[triangleIdx + 0].position.w) * weights[0] +
-														 (1 / vertices[triangleIdx + 1].position.w) * weights[1] +
-														 (1 / vertices[triangleIdx + 2].position.w) * weights[2]) };
-
-								// interpolate all attributes
-								const ColorRGB colorInterpolated{ (vertices[triangleIdx + 0].color / vertices[triangleIdx + 0].position.w * weights[0] +
-																  vertices[triangleIdx + 1].color / vertices[triangleIdx + 1].position.w * weights[1] +
-																  vertices[triangleIdx + 2].color / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
-
-								Vector2 uvInterpolated{ (vertices[triangleIdx + 0].uv / vertices[triangleIdx + 0].position.w * weights[0] +
-													 vertices[triangleIdx + 1].uv / vertices[triangleIdx + 1].position.w * weights[1] +
-													 vertices[triangleIdx + 2].uv / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
-								uvInterpolated.x = Clamp(uvInterpolated.x, 0.f, 1.f);
-								uvInterpolated.y = Clamp(uvInterpolated.y, 0.f, 1.f);
-
-								const Vector3 normalInterpolated{ (vertices[triangleIdx + 0].normal / vertices[triangleIdx + 0].position.w * weights[0] +
-																   vertices[triangleIdx + 1].normal / vertices[triangleIdx + 1].position.w * weights[1] +
-																   vertices[triangleIdx + 2].normal / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
-
-								const Vector3 tangentInterpolated{ (vertices[triangleIdx + 0].tangent / vertices[triangleIdx + 0].position.w * weights[0] +
-																    vertices[triangleIdx + 1].tangent / vertices[triangleIdx + 1].position.w * weights[1] +
-																    vertices[triangleIdx + 2].tangent / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
-								
-								const Vector3 viewDirectionInterpolated{ (vertices[triangleIdx + 0].viewDirection / vertices[triangleIdx + 0].position.w * weights[0] +
-																          vertices[triangleIdx + 1].viewDirection / vertices[triangleIdx + 1].position.w * weights[1] +
-																          vertices[triangleIdx + 2].viewDirection / vertices[triangleIdx + 2].position.w * weights[2]) * wDepth };
-
-								const Vertex_Out vertexInfo{ {}, colorInterpolated, uvInterpolated, normalInterpolated, tangentInterpolated, viewDirectionInterpolated};
-
-								finalColor = PixelShading(vertexInfo);
-							}
+							else finalColor = PixelShading(InterpolatedVertexAtrributes(vertices[triangleIdx + 0], vertices[triangleIdx + 1], vertices[triangleIdx + 2], weights));
 
 							//Update Color in Buffer
 							finalColor.MaxToOne();
